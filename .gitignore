@@ -1,0 +1,39 @@
+# 환경 변수 (민감 정보)
+.env
+.env.local
+_server_env.txt
+*.log
+startup_error.log
+
+# 계정 정보 (민감 정보)
+config/accounts.json
+config/proxies.txt
+
+# 자동 생성 데이터 (런타임)
+config/fingerprints.json
+config/comment_history.json
+config/.license
+
+# 데이터베이스
+*.db
+*.db-journal
+*.db-wal
+
+# SSL 인증서
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CommentBoost - 유튜브 댓글 바이럴 자동화</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #FF6B35;
+            --primary-dark: #E85D2C;
+            --primary-light: #FFF3EE;
+            --bg: #FFFFFF;
+            --bg-gray: #F8F9FA;
+            --bg-dark: #1B1D21;
+            --text: #1B1D21;
+            --text-sub: #6B7280;
+            --text-light: #9CA3AF;
+            --border: #E5E7EB;
+            --border-light: #F3F4F6;
+            --green: #10B981;
+            --blue: #3B82F6;
+            --purple: #8B5CF6;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.12);
+            --radius: 16px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+
+        /* ─── NAV ─── */
+        nav {
+            position: fixed; top: 0; width: 100%; z-index: 100;
+            background: rgba(255,255,255,0.92); backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-light);
+        }
+        nav .container {
+            display: flex; align-items: center; justify-content: space-between;
+            height: 64px;
+        }
+        .logo {
+            font-size: 1.35rem; font-weight: 800; color: var(--primary);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .logo-icon {
+            width: 32px; height: 32px; background: var(--primary);
+            border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 16px;
+        }
+        .nav-links { display: flex; align-items: center; gap: 8px; }
+        .nav-links a {
+            color: var(--text-sub); text-decoration: none; padding: 8px 16px;
+            font-size: 0.9rem; font-weight: 500; border-radius: 8px;
+            transition: all 0.15s;
+        }
+        .nav-links a:hover { color: var(--text); background: var(--bg-gray); }
+        .nav-cta {
+            background: var(--primary) !important; color: #fff !important;
+            font-weight: 600 !important;
+        }
+        .nav-cta:hover { background: var(--primary-dark) !important; }
+
+        /* ─── HERO ─── */
+        .hero {
+            padding: 120px 0 80px;
+            background: linear-gradient(180deg, #FFF8F5 0%, #FFFFFF 100%);
+            overflow: hidden;
+        }
+        .hero .container {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 60px; align-items: center;
+        }
+        .hero-text h1 {
+            font-size: 2.8rem; font-weight: 900; line-height: 1.3;
+            color: var(--text); margin-bottom: 20px;
+            word-break: keep-all;
+        }
+        .hero-text h1 .highlight {
+            color: var(--primary);
+            position: relative;
+        }
+        .hero-text h1 .highlight::after {
+            content: ''; position: absolute; bottom: 2px; left: 0; right: 0;
+            height: 12px; background: rgba(255,107,53,0.15); z-index: -1;
+            border-radius: 2px;
+        }
+        .hero-text p {
+            font-size: 1.1rem; color: var(--text-sub); margin-bottom: 32px;
+            max-width: 460px; word-break: keep-all;
+        }
+        .hero-buttons { display: flex; gap: 12px; flex-wrap: wrap; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 14px 28px; border-radius: 12px;
+            font-size: 0.95rem; font-weight: 600; text-decoration: none;
+            transition: all 0.2s; border: none; cursor: pointer;
+        }
+        .btn-primary {
+            background: var(--primary); color: #fff;
+            box-shadow: 0 4px 14px rgba(255,107,53,0.35);
+        }
+        .btn-primary:hover {
+            background: var(--primary-dark); transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(255,107,53,0.4);
+        }
+        .btn-outline {
+            background: #fff; color: var(--text); border: 1.5px solid var(--border);
+        }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-dark {
+            background: var(--bg-dark); color: #fff;
+        }
+        .btn-dark:hover { background: #2d3038; transform: translateY(-1px); }
+
+        .hero-visual {
+            position: relative;
+        }
+        .hero-mockup {
+            width: 100%; border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border);
+            background: var(--bg-gray);
+            aspect-ratio: 16/10;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden; position: relative;
+        }
+        .mockup-inner {
+            width: 100%; height: 100%; padding: 20px;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .mockup-topbar {
+            display: flex; gap: 6px; padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .mockup-row {
+            display: flex; gap: 12px; flex: 1;
+        }
+        .mockup-sidebar {
+            width: 50px; display: flex; flex-direction: column; gap: 8px;
+        }
+        .mockup-sidebar-item {
+            width: 100%; height: 6px; border-radius: 3px;
+            background: rgba(255,255,255,0.08);
+        }
+        .mockup-sidebar-item.active { background: var(--primary); }
+        .mockup-content {
+            flex: 1; display: flex; flex-direction: column; gap: 10px;
+        }
+        .mockup-card {
+            border-radius: 8px; padding: 14px;
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+            flex: 1;
+        }
+        .mockup-line {
+            height: 5px; border-radius: 3px; margin-bottom: 6px;
+        }
+        .mockup-cards-row { display: flex; gap: 10px; flex: 1; }
+
+        /* 플로팅 뱃지 */
+        .float-badge {
+            position: absolute; background: #fff; border-radius: 12px;
+            padding: 10px 16px; box-shadow: var(--shadow-md);
+            display: flex; align-items: center; gap: 10px;
+            font-size: 0.82rem; font-weight: 600; border: 1px solid var(--border-light);
+            animation: float 3s ease-in-out infinite;
+        }
+        .float-badge .icon {
+            width: 32px; height: 32px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 15px;
+        }
+        .badge-1 { top: 20px; right: -20px; animation-delay: 0s; }
+        .badge-2 { bottom: 60px; left: -30px; animation-delay: 1s; }
+        .badge-3 { bottom: -10px; right: 40px; animation-delay: 2s; }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        /* ─── STATS BAR ─── */
+        .stats-bar {
+            padding: 48px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .stats-grid {
+            display: flex; justify-content: center; gap: 60px; flex-wrap: wrap;
+        }
+        .stat-item { text-align: center; }
+        .stat-num {
+            font-size: 2rem; font-weight: 800; color: var(--primary);
+        }
+        .stat-label { font-size: 0.85rem; color: var(--text-sub); margin-top: 2px; }
+
+        /* ─── SECTION COMMON ─── */
+        .section { padding: 100px 0; }
+        .section-label {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: var(--primary-light); color: var(--primary);
+            font-size: 0.82rem; font-weight: 700; padding: 6px 14px;
+            border-radius: 20px; margin-bottom: 16px;
+        }
+        .section-title {
+            font-size: 2.2rem; font-weight: 800; margin-bottom: 12px;
+            word-break: keep-all; line-height: 1.35;
+        }
+        .section-subtitle {
+            color: var(--text-sub); font-size: 1.05rem; margin-bottom: 48px;
+            max-width: 540px;
+        }
+        .text-center { text-align: center; }
+        .text-center .section-subtitle { margin-left: auto; margin-right: auto; }
+
+        /* ─── FEATURES ─── */
+        .features-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+        }
+        .feature-card {
+            background: #fff; border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 32px;
+            transition: all 0.2s;
+        }
+        .feature-card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 8px 30px rgba(255,107,53,0.08);
+            transform: translateY(-2px);
+        }
+        .feature-icon {
+            width: 48px; height: 48px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; margin-bottom: 18px;
+        }
+        .feature-card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+        .feature-card p { color: var(--text-sub); font-size: 0.9rem; line-height: 1.65; }
+
+        /* ─── HOW IT WORKS ─── */
+        .how-section { background: var(--bg-gray); }
+        .steps-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px;
+            position: relative;
+        }
+        .steps-grid::before {
+            content: '';
+            position: absolute; top: 36px; left: 60px; right: 60px;
+            height: 2px; background: var(--border);
+            z-index: 0;
+        }
+        .step-card {
+            text-align: center; position: relative; z-index: 1;
+        }
+        .step-num {
+            width: 72px; height: 72px; border-radius: 50%;
+            background: #fff; border: 2px solid var(--border);
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 1.4rem; font-weight: 800; color: var(--primary);
+            margin-bottom: 20px;
+            transition: all 0.2s;
+        }
+        .step-card:hover .step-num {
+            background: var(--primary); color: #fff; border-color: var(--primary);
+        }
+        .step-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+        .step-card p { color: var(--text-sub); font-size: 0.88rem; }
+
+        /* ─── PRICING ─── */
+        .pricing-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+        }
+        .plan-card {
+            background: #fff; border: 1.5px solid var(--border);
+            border-radius: var(--radius); padding: 32px 24px; position: relative;
+            transition: all 0.2s;
+        }
+        .plan-card:hover { border-color: var(--text-light); }
+        .plan-card.popular {
+            border-color: var(--primary);
+            box-shadow: 0 8px 30px rgba(255,107,53,0.12);
+        }
+        .plan-badge {
+            position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
+            background: var(--primary); color: #fff; font-size: 0.75rem;
+            padding: 5px 18px; border-radius: 20px; font-weight: 700;
+            white-space: nowrap;
+        }
+        .plan-name {
+            font-size: 0.9rem; font-weight: 700; color: var(--text-sub);
+            text-transform: uppercase; letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+        .plan-price {
+            font-size: 2rem; font-weight: 900; margin-bottom: 4px;
+            display: flex; align-items: baseline; gap: 4px;
+        }
+        .plan-price .unit { font-size: 0.85rem; font-weight: 500; color: var(--text-sub); }
+        .plan-desc { color: var(--text-light); font-size: 0.85rem; margin-bottom: 24px; }
+        .plan-divider {
+            width: 100%; height: 1px; background: var(--border-light);
+            margin-bottom: 20px;
+        }
+        .plan-features { list-style: none; margin-bottom: 28px; }
+        .plan-features li {
+            padding: 5px 0; font-size: 0.88rem; color: var(--text-sub);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .plan-features li .check {
+            color: var(--green); font-weight: 700; font-size: 14px; flex-shrink: 0;
+        }
+        .plan-features li.locked { opacity: 0.35; }
+        .plan-features li.locked .check { color: var(--text-light); }
+        .plan-btn {
+            display: block; width: 100%; padding: 12px; border-radius: 10px;
+            text-align: center; font-weight: 600; font-size: 0.9rem;
+            text-decoration: none; transition: all 0.15s;
+            border: 1.5px solid var(--border); color: var(--text); background: #fff;
+        }
+        .plan-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .plan-card.popular .plan-btn {
+            background: var(--primary); color: #fff; border-color: var(--primary);
+        }
+        .plan-card.popular .plan-btn:hover { background: var(--primary-dark); }
+
+        /* ─── DOWNLOAD CTA ─── */
+        .download-section {
+            background: linear-gradient(135deg, var(--bg-dark) 0%, #2a2c34 100%);
+            color: #fff;
+        }
+        .download-section .container {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 40px;
+        }
+        .download-text h2 {
+            font-size: 2rem; font-weight: 800; margin-bottom: 12px;
+            color: #fff;
+        }
+        .download-text p {
+            color: rgba(255,255,255,0.6); font-size: 1rem;
+            margin-bottom: 28px; max-width: 420px;
+        }
+        .download-info {
+            display: flex; gap: 24px; margin-top: 20px;
+        }
+        .download-info-item {
+            font-size: 0.82rem; color: rgba(255,255,255,0.5);
+            display: flex; align-items: center; gap: 6px;
+        }
+
+        /* ─── FAQ ─── */
+        .faq-list { max-width: 720px; margin: 0 auto; }
+        .faq-item {
+            border-bottom: 1px solid var(--border-light);
+        }
+        .faq-q {
+            padding: 20px 0; cursor: pointer; font-weight: 600;
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.95rem; transition: color 0.15s;
+        }
+        .faq-q:hover { color: var(--primary); }
+        .faq-a {
+            max-height: 0; overflow: hidden; transition: max-height 0.3s ease;
+            color: var(--text-sub); font-size: 0.92rem; line-height: 1.7;
+        }
+        .faq-item.open .faq-a {
+            max-height: 300px; padding-bottom: 20px;
+        }
+        .faq-arrow {
+            transition: transform 0.2s; color: var(--text-light);
+            font-size: 12px;
+        }
+        .faq-item.open .faq-arrow { transform: rotate(180deg); }
+
+        /* ─── FOOTER ─── */
+        footer {
+            border-top: 1px solid var(--border-light); padding: 40px 0;
+            color: var(--text-light); font-size: 0.82rem;
+        }
+        footer .container {
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        footer a { color: var(--text-sub); text-decoration: none; }
+        footer a:hover { color: var(--primary); }
+
+        /* ─── RESPONSIVE ─── */
+        @media (max-width: 960px) {
+            .hero .container { grid-template-columns: 1fr; text-align: center; }
+            .hero-text p { margin-left: auto; margin-right: auto; }
+            .hero-buttons { justify-content: center; }
+            .hero-visual { max-width: 500px; margin: 0 auto; }
+            .features-grid { grid-template-columns: repeat(2, 1fr); }
+            .pricing-grid { grid-template-columns: repeat(2, 1fr); }
+            .steps-grid { grid-template-columns: repeat(2, 1fr); }
+            .steps-grid::before { display: none; }
+            .download-section .container { flex-direction: column; text-align: center; }
+        }
+        @media (max-width: 640px) {
+            .hero-text h1 { font-size: 2rem; }
+            .features-grid { grid-template-columns: 1fr; }
+            .pricing-grid { grid-template-columns: 1fr; }
+            .steps-grid { grid-template-columns: 1fr; }
+            .nav-links a:not(.nav-cta) { display: none; }
+            .stats-grid { gap: 32px; }
+            footer .container { flex-direction: column; gap: 12px; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+    <div class="container">
+        <div class="logo">
+            <div class="logo-icon">CB</div>
+            CommentBoost
+        </div>
+        <div class="nav-links">
+            <a href="#features">기능</a>
+            <a href="#pricing">가격</a>
+            <a href="#howto">시작하기</a>
+            <a href="#faq">FAQ</a>
+            <a href="#download" class="nav-cta">다운로드</a>
+        </div>
+    </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+    <div class="container">
+        <div class="hero-text">
+            <h1>
+                유튜브 댓글 바이럴,<br>
+                <span class="highlight">자동화</span>하세요.
+            </h1>
+            <p>
+                댓글 작성부터 좋아요 부스팅, 노출 트래킹까지.<br>
+                내 PC에서 안전하게 실행되는 올인원 자동화 프로그램.
+            </p>
+            <div class="hero-buttons">
+                <a href="#download" class="btn btn-primary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    무료 다운로드
+                </a>
+                <a href="#features" class="btn btn-outline">기능 살펴보기</a>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="hero-mockup">
+                <div class="mockup-inner">
+                    <div class="mockup-topbar">
+                        <div class="mockup-dot" style="background:#ff5f57"></div>
+                        <div class="mockup-dot" style="background:#febc2e"></div>
+                        <div class="mockup-dot" style="background:#28c840"></div>
+                    </div>
+                    <div class="mockup-row">
+                        <div class="mockup-sidebar">
+                            <div class="mockup-sidebar-item active"></div>
+                            <div class="mockup-sidebar-item"></div>
+                            <div class="mockup-sidebar-item"></div>
+                            <div class="mockup-sidebar-item"></div>
+                            <div class="mockup-sidebar-item"></div>
+                        </div>
+                        <div class="mockup-content">
+                            <div class="mockup-cards-row">
+                                <div class="mockup-card">
+                                    <div class="mockup-line" style="width:60%;background:var(--primary);opacity:0.8"></div>
+                                    <div class="mockup-line" style="width:80%;background:rgba(255,255,255,0.08)"></div>
+                                    <div class="mockup-line" style="width:45%;background:rgba(255,255,255,0.08)"></div>
+                                </div>
+                                <div class="mockup-card">
+                                    <div class="mockup-line" style="width:50%;background:#10b981;opacity:0.8"></div>
+                                    <div class="mockup-line" style="width:70%;background:rgba(255,255,255,0.08)"></div>
+                                    <div class="mockup-line" style="width:55%;background:rgba(255,255,255,0.08)"></div>
+                                </div>
+                                <div class="mockup-card">
+                                    <div class="mockup-line" style="width:40%;background:#3b82f6;opacity:0.8"></div>
+                                    <div class="mockup-line" style="width:65%;background:rgba(255,255,255,0.08)"></div>
+                                    <div class="mockup-line" style="width:50%;background:rgba(255,255,255,0.08)"></div>
+                                </div>
+                            </div>
+                            <div class="mockup-card" style="flex:2">
+                                <div class="mockup-line" style="width:30%;background:rgba(255,255,255,0.12)"></div>
+                                <div style="display:flex;gap:8px;margin-top:8px">
+                                    <div style="flex:1;height:40px;border-radius:6px;background:rgba(255,107,53,0.15)"></div>
+                                    <div style="flex:1;height:40px;border-radius:6px;background:rgba(16,185,129,0.15)"></div>
+                                    <div style="flex:1;height:40px;border-radius:6px;background:rgba(59,130,246,0.15)"></div>
+                                    <div style="flex:1;height:40px;border-radius:6px;background:rgba(139,92,246,0.15)"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- 플로팅 뱃지 -->
+            <div class="float-badge badge-1">
+                <div class="icon" style="background:#FFF3EE;color:var(--primary)">&#128172;</div>
+                <div>
+                    <div style="font-size:0.9rem">댓글 자동 작성</div>
+                    <div style="font-size:0.72rem;color:var(--text-light)">Notion 연동</div>
+                </div>
+            </div>
+            <div class="float-badge badge-2">
+                <div class="icon" style="background:#ECFDF5;color:var(--green)">&#128077;</div>
+                <div>
+                    <div style="font-size:0.9rem">좋아요 부스팅</div>
+                    <div style="font-size:0.72rem;color:var(--text-light)">3단계 티어</div>
+                </div>
+            </div>
+            <div class="float-badge badge-3">
+                <div class="icon" style="background:#EEF2FF;color:var(--purple)">&#128200;</div>
+                <div>
+                    <div style="font-size:0.9rem">노출 트래킹</div>
+                    <div style="font-size:0.72rem;color:var(--text-light)">실시간 순위</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- STATS -->
+<section class="stats-bar">
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-num">10,000+</div>
+                <div class="stat-label">일일 댓글 처리량</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-num">99.2%</div>
+                <div class="stat-label">댓글 노출 성공률</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-num">30+</div>
+                <div class="stat-label">계정 동시 운영</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-num">5분</div>
+                <div class="stat-label">설치 소요 시간</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section" id="features">
+    <div class="container text-center">
+        <div class="section-label">핵심 기능</div>
+        <h2 class="section-title">댓글 바이럴에 필요한 모든 것</h2>
+        <p class="section-subtitle">복잡한 작업을 자동화하고, 결과를 실시간으로 추적하세요</p>
+    </div>
+    <div class="container">
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon" style="background:#FFF3EE;color:var(--primary);">&#128203;</div>
+                <h3>Notion 연동 자동화</h3>
+                <p>Notion DB에 영상 URL과 댓글 원고를 입력하면 자동 작성. 결과 URL도 Notion에 자동 기록됩니다.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background:#ECFDF5;color:var(--green);">&#128274;</div>
+                <h3>안티디텍트 브라우저</h3>
+                <p>계정마다 고유한 브라우저 지문 생성. IP 로테이션, 프록시 지원으로 계정을 안전하게 보호합니다.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background:#EEF2FF;color:var(--blue);">&#128077;</div>
+                <h3>좋아요 자동 부스팅</h3>
+                <p>댓글 작성 후 좋아요를 자동 주문. 베이직/스탠다드/프리미엄 3단계 티어를 선택할 수 있습니다.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background:#FEF3C7;color:#D97706;">&#128200;</div>
+                <h3>노출 트래킹</h3>
+                <p>작성한 댓글의 노출 여부를 자동 확인. 댓글 순위 체크와 중복 영상 스캔까지 지원합니다.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background:#F3E8FF;color:var(--purple);">&#128187;</div>
+                <h3>내 PC에서 실행</h3>
+                <p>클라우드가 아닌 내 컴퓨터에서 직접 실행. 계정 정보, 세션, 쿠키가 외부로 전송되지 않습니다.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background:#FEE2E2;color:#EF4444;">&#128736;</div>
+                <h3>안전 보호 시스템</h3>
+                <p>1일 댓글 제한, 동일 영상 간격, 중복 필터, 인간형 딜레이 등 다중 안전장치를 기본 탑재.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section how-section" id="howto">
+    <div class="container text-center">
+        <div class="section-label">시작하기</div>
+        <h2 class="section-title">5분이면 시작할 수 있습니다</h2>
+        <p class="section-subtitle">Windows PC만 있으면 됩니다</p>
+    </div>
+    <div class="container">
+        <div class="steps-grid">
+            <div class="step-card">
+                <div class="step-num">1</div>
+                <h3>다운로드</h3>
+                <p>CommentBoost를 다운받고<br>원하는 폴더에 압축 해제</p>
+            </div>
+            <div class="step-card">
+                <div class="step-num">2</div>
+                <h3>설치</h3>
+                <p>install.bat 더블클릭으로<br>자동 환경 설정</p>
+            </div>
+            <div class="step-card">
+                <div class="step-num">3</div>
+                <h3>실행</h3>
+                <p>start.bat 더블클릭하면<br>앱이 바로 실행됩니다</p>
+            </div>
+            <div class="step-card">
+                <div class="step-num">4</div>
+                <h3>자동화 시작</h3>
+                <p>Notion 연결 + 계정 추가<br>후 바로 자동화 시작</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- PRICING -->
+<section class="section" id="pricing">
+    <div class="container text-center">
+        <div class="section-label">요금제</div>
+        <h2 class="section-title">필요한 만큼만 선택하세요</h2>
+        <p class="section-subtitle">모든 플랜에 기본 기능이 포함됩니다</p>
+    </div>
+    <div class="container">
+        <div class="pricing-grid">
+            <div class="plan-card">
+                <div class="plan-name">Free</div>
+                <div class="plan-price">0<span class="unit">원</span></div>
+                <div class="plan-desc">체험용</div>
+                <div class="plan-divider"></div>
+                <ul class="plan-features">
+                    <li><span class="check">&#10003;</span> 유튜브 계정 1개</li>
+                    <li><span class="check">&#10003;</span> 댓글 자동 작성</li>
+                    <li><span class="check">&#10003;</span> Notion 연동</li>
+                    <li class="locked"><span class="check">&#10005;</span> 노출 트래킹</li>
+                    <li class="locked"><span class="check">&#10005;</span> 좋아요 부스팅</li>
+                    <li class="locked"><span class="check">&#10005;</span> 리포스팅</li>
+                </ul>
+                <a href="#download" class="plan-btn">무료로 시작</a>
+            </div>
+            <div class="plan-card">
+                <div class="plan-name">Starter</div>
+                <div class="plan-price">10<span class="unit">만원/월</span></div>
+                <div class="plan-desc">개인 운영자</div>
+                <div class="plan-divider"></div>
+                <ul class="plan-features">
+                    <li><span class="check">&#10003;</span> 유튜브 계정 3개</li>
+                    <li><span class="check">&#10003;</span> 댓글 자동 작성</li>
+                    <li><span class="check">&#10003;</span> 노출 트래킹 (월 3회)</li>
+                    <li><span class="check">&#10003;</span> 좋아요 부스팅</li>
+                    <li class="locked"><span class="check">&#10005;</span> 리포스팅 / 중복 스캔</li>
+                    <li class="locked"><span class="check">&#10005;</span> 병렬 실행</li>
+                </ul>
+                <a href="#download" class="plan-btn">시작하기</a>
+            </div>
+            <div class="plan-card popular">
+                <div class="plan-badge">가장 인기</div>
+                <div class="plan-name">Business</div>
+                <div class="plan-price">29<span class="unit">만원/월</span></div>
+                <div class="plan-desc">전문 마케터</div>
+                <div class="plan-divider"></div>
+                <ul class="plan-features">
+                    <li><span class="check">&#10003;</span> 유튜브 계정 10개</li>
+                    <li><span class="check">&#10003;</span> 리포스팅 / 중복 스캔</li>
+                    <li><span class="check">&#10003;</span> 노출 트래킹 (월 10회)</li>
+                    <li><span class="check">&#10003;</span> 좋아요 미리보기</li>
+                    <li><span class="check">&#10003;</span> 순위 체크</li>
+                    <li class="locked"><span class="check">&#10005;</span> 병렬 실행</li>
+                </ul>
+                <a href="#download" class="plan-btn">시작하기</a>
+            </div>
+            <div class="plan-card">
+                <div class="plan-name">Agency</div>
+                <div class="plan-price">59<span class="unit">만원/월</span></div>
+                <div class="plan-desc">대행사 / 팀</div>
+                <div class="plan-divider"></div>
+                <ul class="plan-features">
+                    <li><span class="check">&#10003;</span> 유튜브 계정 30개</li>
+                    <li><span class="check">&#10003;</span> 모든 기능 포함</li>
+                    <li><span class="check">&#10003;</span> 무제한 트래킹</li>
+                    <li><span class="check">&#10003;</span> 다중 계정 병렬 실행</li>
+                    <li><span class="check">&#10003;</span> 작업 예약 스케줄링</li>
+                    <li><span class="check">&#10003;</span> 자동 노출 체크</li>
+                </ul>
+                <a href="#download" class="plan-btn">시작하기</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- DOWNLOAD CTA -->
+<section class="section download-section" id="download">
+    <div class="container">
+        <div class="download-text">
+            <h2>지금 바로 시작하세요</h2>
+            <p>Windows용 프로그램을 다운로드받고 5분 안에 첫 댓글 자동화를 경험하세요.</p>
+            <a href="/download/CommentBoost-latest.zip" class="btn btn-primary" style="font-size:1rem;padding:16px 36px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Windows 다운로드
+            </a>
+            <div class="download-info">
+                <div class="download-info-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                    Windows 10+
+                </div>
+                <div class="download-info-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    v1.0.0
+                </div>
+                <div class="download-info-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    안전한 로컬 실행
+                </div>
+            </div>
+        </div>
+        <div style="flex-shrink:0">
+            <div style="width:300px;height:200px;background:rgba(255,255,255,0.05);border-radius:16px;border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;">
+                <div style="text-align:center">
+                    <div style="font-size:48px;margin-bottom:8px">&#128640;</div>
+                    <div style="color:rgba(255,255,255,0.4);font-size:0.85rem">CommentBoost.exe</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- FAQ -->
+<section class="section" id="faq">
+    <div class="container text-center">
+        <div class="section-label">FAQ</div>
+        <h2 class="section-title">자주 묻는 질문</h2>
+        <p class="section-subtitle"></p>
+    </div>
+    <div class="container">
+        <div class="faq-list">
+            <div class="faq-item">
+                <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+                    <span>클라우드 서비스인가요?</span>
+                    <span class="faq-arrow">&#9660;</span>
+                </div>
+                <div class="faq-a">
+                    아닙니다. CommentBoost는 <b>내 PC에서 직접 실행</b>되는 프로그램입니다.
+                    유튜브 로그인, 댓글 작성, 브라우저 조작이 모두 내 컴퓨터에서 이뤄지며
+                    계정 정보가 외부 서버로 전송되지 않습니다.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+                    <span>유튜브 계정이 정지되지 않나요?</span>
+                    <span class="faq-arrow">&#9660;</span>
+                </div>
+                <div class="faq-a">
+                    안티디텍트 지문, 인간형 딜레이, 계정별 IP 분리, 1일 댓글 제한 등
+                    다중 안전장치가 적용됩니다. 다만 자동화 도구의 특성상 100% 보장은 어려우며,
+                    적절한 설정과 운영이 중요합니다.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+                    <span>Mac에서도 사용할 수 있나요?</span>
+                    <span class="faq-arrow">&#9660;</span>
+                </div>
+                <div class="faq-a">
+                    현재 <b>Windows</b>를 공식 지원합니다. Mac에서도 Python 환경이 있다면
+                    수동으로 실행할 수 있지만, 일부 기능은 Windows에 최적화되어 있습니다.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+                    <span>Notion이 꼭 필요한가요?</span>
+                    <span class="faq-arrow">&#9660;</span>
+                </div>
+                <div class="faq-a">
+                    네, 현재 버전은 Notion DB를 작업 관리 도구로 사용합니다.
+                    Notion 무료 계정으로 충분하며, 제공되는 템플릿을 복제하면 바로 시작할 수 있습니다.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+                    <span>플랜은 앱 안에서 결제하나요?</span>
+                    <span class="faq-arrow">&#9660;</span>
+                </div>
+                <div class="faq-a">
+                    네, 프로그램 설치 후 앱 내에서 원하는 플랜을 선택하고 결제할 수 있습니다.
+                    Free 플랜은 결제 없이 바로 체험 가능합니다.
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+    <div class="container">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <div class="logo-icon" style="width:24px;height:24px;font-size:11px;border-radius:6px;">CB</div>
+            <span style="font-weight:600;color:var(--text-sub);">CommentBoost</span>
+        </div>
+        <div>
+            <a href="mailto:support@commentboost.cloud">support@commentboost.cloud</a>
+            &nbsp;&middot;&nbsp;
+            &copy; 2026 CommentBoost
+        </div>
+    </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>댓글 부스터 - 라이선스 관리</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e0e0e0; }
+
+        .header {
+            background: #1a1d27; padding: 16px 24px; border-bottom: 1px solid #2a2d37;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .header h1 { font-size: 20px; color: #fff; }
+        .header .badge { background: #22c55e; color: #000; padding: 4px 10px; border-radius: 12px; font-size: 12px; }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;
+        }
+        .stat-card {
+            background: #1a1d27; border: 1px solid #2a2d37; border-radius: 12px; padding: 20px;
+        }
+        .stat-card .label { font-size: 13px; color: #888; margin-bottom: 4px; }
+        .stat-card .value { font-size: 28px; font-weight: 700; color: #fff; }
+
+        .section { background: #1a1d27; border: 1px solid #2a2d37; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+        .section-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 10px 12px; font-size: 12px; color: #888; border-bottom: 1px solid #2a2d37; }
+        td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #1f222c; }
+        tr:hover td { background: #1f222c; }
+
+        .btn {
+            padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer;
+            font-size: 13px; font-weight: 500; transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn-primary { background: #3b82f6; color: #fff; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-success { background: #22c55e; color: #000; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+        .badge-plan { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .badge-starter { background: #3b82f620; color: #60a5fa; }
+        .badge-business { background: #8b5cf620; color: #a78bfa; }
+        .badge-agency { background: #f59e0b20; color: #fbbf24; }
+        .badge-enterprise { background: #22c55e20; color: #4ade80; }
+
+        .status-active { color: #22c55e; }
+        .status-revoked { color: #ef4444; }
+        .status-expired { color: #888; }
+
+        /* 모달 */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center;
+        }
+        .modal {
+            background: #1a1d27; border: 1px solid #2a2d37; border-radius: 12px;
+            padding: 24px; width: 460px; max-width: 90vw;
+        }
+        .modal h3 { margin-bottom: 16px; font-size: 16px; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 12px; color: #888; margin-bottom: 4px; }
+        .form-group input, .form-group select {
+            width: 100%; padding: 8px 12px; border: 1px solid #2a2d37; border-radius: 6px;
+            background: #0f1117; color: #e0e0e0; font-size: 13px;
+        }
+        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+        .license-key {
+            font-family: 'Courier New', monospace; background: #0f1117;
+            padding: 4px 8px; border-radius: 4px; font-size: 13px; cursor: pointer;
+        }
+        .license-key:hover { background: #2a2d37; }
+
+        .token-bar {
+            width: 100%; height: 6px; background: #2a2d37; border-radius: 3px; overflow: hidden;
+        }
+        .token-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>댓글 부스터 Admin</h1>
+        <span class="badge">v1.0</span>
+    </div>
+
+    <div class="container">
+        <!-- 통계 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="label">총 고객</div>
+                <div class="value" id="statCustomers">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">활성 라이선스</div>
+                <div class="value" id="statLicenses">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">플랜별 현황</div>
+                <div id="statPlans" style="font-size:13px;margin-top:8px;"></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">추가 토큰 매출</div>
+                <div class="value" id="statRevenue">-</div>
+            </div>
+        </div>
+
+        <!-- 고객 목록 -->
+        <div class="section">
+            <div class="section-title">
+                <span>고객 목록</span>
+                <button class="btn btn-primary" onclick="showModal('customerModal')">+ 고객 추가</button>
+            </div>
+            <table>
+                <thead><tr><th>이름</th><th>이메일</th><th>전화</th><th>회사</th><th>등록일</th><th></th></tr></thead>
+                <tbody id="customerTable"></tbody>
+            </table>
+        </div>
+
+        <!-- 라이선스 목록 -->
+        <div class="section">
+            <div class="section-title">
+                <span>라이선스 목록</span>
+            </div>
+            <table>
+                <thead><tr><th>고객</th><th>플랜</th><th>라이선스 키</th><th>상태</th><th>만료일</th><th>토큰 잔액</th><th></th></tr></thead>
+                <tbody id="licenseTable"></tbody>
+            </table>
+        </div>
+
+        <!-- 최근 API 로그 -->
+        <div class="section">
+            <div class="section-title"><span>최근 API 로그</span></div>
+            <table>
+                <thead><tr><th>시간</th><th>키</th><th>엔드포인트</th><th>IP</th><th>결과</th><th>메시지</th></tr></thead>
+                <tbody id="logTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 고객 추가 모달 -->
+    <div class="modal-overlay" id="customerModal">
+        <div class="modal">
+            <h3>고객 추가</h3>
+            <div class="form-group"><label>이메일 *</label><input id="cEmail" type="email" placeholder="email@example.com"></div>
+            <div class="form-group"><label>이름 *</label><input id="cName" placeholder="홍길동"></div>
+            <div class="form-group"><label>전화</label><input id="cPhone" placeholder="010-1234-5678"></div>
+            <div class="form-group"><label>회사</label><input id="cCompany" placeholder="회사명"></div>
+            <div class="form-group"><label>메모</label><input id="cMemo" placeholder="메모"></div>
+            <div class="modal-actions">
+                <button class="btn" onclick="hideModal('customerModal')" style="background:#2a2d37;color:#e0e0e0;">취소</button>
+                <button class="btn btn-primary" onclick="addCustomer()">추가</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 라이선스 발급 모달 -->
+    <div class="modal-overlay" id="licenseModal">
+        <div class="modal">
+            <h3>라이선스 발급</h3>
+            <input type="hidden" id="lCustomerId">
+            <div class="form-group"><label>고객</label><input id="lCustomerName" readonly style="opacity:0.7;"></div>
+            <div class="form-group">
+                <label>플랜</label>
+                <select id="lPlan">
+                    <option value="starter">Starter (10만원/월)</option>
+                    <option value="business">Business (29만원/월)</option>
+                    <option value="agency">Agency (59만원/월)</option>
+                    <option value="enterprise">Enterprise (990만원/영구)</option>
+                </select>
+            </div>
+            <div class="form-group"><label>기간 (개월)</label><input id="lMonths" type="number" value="1" min="1"></div>
+            <div class="modal-actions">
+                <button class="btn" onclick="hideModal('licenseModal')" style="background:#2a2d37;color:#e0e0e0;">취소</button>
+                <button class="btn btn-success" onclick="issueLicense()">발급</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 토큰 추가 모달 -->
+    <div class="modal-overlay" id="tokenModal">
+        <div class="modal">
+            <h3>토큰 추가</h3>
+            <input type="hidden" id="tLicenseId">
+            <div class="form-group"><label>추가 토큰 수</label><input id="tTokens" type="number" value="1000" min="100"></div>
+            <div class="form-group"><label>결제 금액 (원)</label><input id="tPrice" type="number" value="30000" min="0"></div>
+            <div class="modal-actions">
+                <button class="btn" onclick="hideModal('tokenModal')" style="background:#2a2d37;color:#e0e0e0;">취소</button>
+                <button class="btn btn-success" onclick="addTokens()">추가</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ADMIN_KEY = prompt('관리자 API 키를 입력하세요:') || '';
+
+        function apiFetch(url, opts = {}) {
+            opts.headers = { ...opts.headers, 'Content-Type': 'application/json', 'X-Admin-Key': ADMIN_KEY };
+            return fetch(url, opts).then(r => r.json());
+        }
+
+        function showModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function hideModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function copyKey(key) {
+            navigator.clipboard.writeText(key);
+            alert('라이선스 키가 복사되었습니다: ' + key);
+        }
+
+        // ─── 데이터 로드 ───
+
+        async function loadAll() {
+            await Promise.all([loadStats(), loadCustomers(), loadLicenses()]);
+        }
+
+        async function loadStats() {
+            const data = await apiFetch('/api/admin/stats');
+            document.getElementById('statCustomers').textContent = data.total_customers;
+            document.getElementById('statLicenses').textContent = data.active_licenses;
+            document.getElementById('statRevenue').textContent = (data.total_token_revenue || 0).toLocaleString() + '원';
+
+            const plansHtml = (data.plan_stats || [])
+                .map(p => `<div>${p.display_name}: <strong>${p.count}</strong></div>`)
+                .join('');
+            document.getElementById('statPlans').innerHTML = plansHtml;
+
+            // 로그
+            const logBody = document.getElementById('logTable');
+            logBody.innerHTML = (data.recent_logs || []).slice(0, 20).map(log => `
+                <tr>
+                    <td>${(log.logged_at||'').replace('T',' ').slice(0,19)}</td>
+                    <td><span class="license-key">${(log.license_key||'').slice(0,8)}...</span></td>
+                    <td>${log.endpoint}</td>
+                    <td>${log.ip_address}</td>
+                    <td style="color:${log.success ? '#22c55e' : '#ef4444'}">${log.success ? 'OK' : 'FAIL'}</td>
+                    <td style="color:#888;font-size:12px;">${log.message||''}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function loadCustomers() {
+            const data = await apiFetch('/api/admin/customers');
+            const tbody = document.getElementById('customerTable');
+            tbody.innerHTML = data.map(c => `
+                <tr>
+                    <td><strong>${c.name}</strong></td>
+                    <td>${c.email}</td>
+                    <td>${c.phone||'-'}</td>
+                    <td>${c.company||'-'}</td>
+                    <td>${(c.created_at||'').slice(0,10)}</td>
+                    <td><button class="btn btn-success btn-sm" onclick="showLicenseModal('${c.id}','${c.name}')">라이선스 발급</button></td>
+                </tr>
+            `).join('');
+        }
+
+        async function loadLicenses() {
+            const data = await apiFetch('/api/admin/licenses');
+            const tbody = document.getElementById('licenseTable');
+            tbody.innerHTML = data.map(l => {
+                const planClass = 'badge-' + (l.plan_display||'').toLowerCase();
+                const statusClass = 'status-' + l.status;
+                return `
+                <tr>
+                    <td>${l.customer_name} <span style="color:#888;font-size:11px;">${l.customer_email}</span></td>
+                    <td><span class="badge-plan ${planClass}">${l.plan_display}</span></td>
+                    <td><span class="license-key" onclick="copyKey('${l.license_key}')" title="클릭하여 복사">${l.license_key}</span></td>
+                    <td><span class="${statusClass}">${l.status}</span></td>
+                    <td>${l.is_permanent ? '영구' : (l.expires_at||'').slice(0,10)}</td>
+                    <td>
+                        <button class="btn btn-sm" style="background:#2a2d37;color:#e0e0e0;" onclick="showTokenModal('${l.id}')">토큰 추가</button>
+                    </td>
+                    <td>
+                        ${l.status === 'active' ? `<button class="btn btn-danger btn-sm" onclick="revokeLic('${l.id}')">해지</button>` : ''}
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        // ─── 액션 ───
+
+        async function addCustomer() {
+            const body = {
+                email: document.getElementById('cEmail').value,
+                name: document.getElementById('cName').value,
+                phone: document.getElementById('cPhone').value,
+                company: document.getElementById('cCompany').value,
+                memo: document.getElementById('cMemo').value,
+            };
+            const res = await apiFetch('/api/admin/customers', { method: 'POST', body: JSON.stringify(body) });
+            if (res.error) { alert(res.error); return; }
+            hideModal('customerModal');
+            loadAll();
+        }
+
+        function showLicenseModal(customerId, customerName) {
+            document.getElementById('lCustomerId').value = customerId;
+            document.getElementById('lCustomerName').value = customerName;
+            showModal('licenseModal');
+        }
+
+        async function issueLicense() {
+            const body = {
+                customer_id: document.getElementById('lCustomerId').value,
+                plan_id: document.getElementById('lPlan').value,
+                months: parseInt(document.getElementById('lMonths').value) || 1,
+            };
+            const res = await apiFetch('/api/admin/licenses', { method: 'POST', body: JSON.stringify(body) });
+            if (res.error) { alert(res.error); return; }
+            hideModal('licenseModal');
+            alert('라이선스 발급 완료!\n키: ' + res.license_key);
+            loadAll();
+        }
+
+        function showTokenModal(licenseId) {
+            document.getElementById('tLicenseId').value = licenseId;
+            showModal('tokenModal');
+        }
+
+        async function addTokens() {
+            const licenseId = document.getElementById('tLicenseId').value;
+            const body = {
+                tokens: parseInt(document.getElementById('tTokens').value),
+                price: parseInt(document.getElementById('tPrice').value),
+            };
+            const res = await apiFetch(`/api/admin/licenses/${licenseId}/tokens/add`, { method: 'POST', body: JSON.stringify(body) });
+            if (res.error) { alert(res.error); return; }
+            hideModal('tokenModal');
+            alert('토큰 추가 완료! 잔액: ' + res.balance);
+            loadAll();
+        }
+
+        async function revokeLic(licenseId) {
+            if (!confirm('이 라이선스를 해지하시겠습니까?')) return;
+            await apiFetch(`/api/admin/licenses/${licenseId}/revoke`, { method: 'POST' });
+            loadAll();
+        }
+
+        // 초기 로드
+        loadAll();
+        setInterval(loadAll, 30000);
+    </script>
+</body>
+</html>

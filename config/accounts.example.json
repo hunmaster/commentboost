@@ -1,0 +1,14 @@
+[
+  {
+    "email": "youtube_account1@gmail.com",
+    "password": "your_password_here",
+    "account_type": "sub",
+    "label": "부계정1"
+  },
+  {
+    "email": "youtube_account2@gmail.com",
+    "password": "your_password_here",
+    "account_type": "sub",
+    "label": "부계정2"
+  }
+]

@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: yt-comment-automation
+    ports:
+      - "5000:5000"
+    volumes:
+      # 설정 파일 영속화 (컨테이너 삭제해도 유지)
+      - ./config:/app/config
+      - ./data:/app/data
+      - ./.env:/app/.env
+    environment:
+      - LICENSE_MODE=client
+      - LICENSE_SERVER_URL=${LICENSE_SERVER_URL:-https://license.yourservice.com}
+    restart: unless-stopped

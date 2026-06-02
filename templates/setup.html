@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>초기 셋업 - 댓글 부스터</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', -apple-system, sans-serif;
+            background: #0a0b10;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        .setup-container {
+            width: 560px;
+            max-width: 95vw;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .logo h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+        .logo p {
+            color: #666;
+            font-size: 13px;
+        }
+
+        /* 스텝 인디케이터 */
+        .steps {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 32px;
+        }
+        .step-dot {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid #2a2d37;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            transition: all 0.3s;
+        }
+        .step-dot.active {
+            border-color: #3b82f6;
+            color: #3b82f6;
+            background: #3b82f620;
+        }
+        .step-dot.done {
+            border-color: #22c55e;
+            color: #fff;
+            background: #22c55e;
+        }
+        .step-line {
+            width: 40px;
+            height: 2px;
+            background: #2a2d37;
+            align-self: center;
+            transition: background 0.3s;
+        }
+        .step-line.done { background: #22c55e; }
+
+        /* 카드 */
+        .card {
+            background: #13151c;
+            border: 1px solid #2a2d37;
+            border-radius: 16px;
+            padding: 32px;
+            display: none;
+        }
+        .card.active { display: block; }
+
+        .card h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #fff;
+        }
+        .card .subtitle {
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #2a2d37;
+            border-radius: 8px;
+            background: #0a0b10;
+            color: #e0e0e0;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus {
+            border-color: #3b82f6;
+        }
+        .form-group .hint {
+            margin-top: 4px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 24px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            flex: 1;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-primary { background: #3b82f6; color: #fff; }
+        .btn-success { background: #22c55e; color: #000; }
+        .btn-secondary { background: #2a2d37; color: #e0e0e0; flex: 0; padding: 10px 16px; }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #2a2d37;
+            color: #888;
+            flex: 0;
+            padding: 10px 16px;
+        }
+
+        .status-msg {
+            margin-top: 12px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+        }
+        .status-msg.error { display: block; background: #ef444420; color: #f87171; border: 1px solid #ef444440; }
+        .status-msg.success { display: block; background: #22c55e20; color: #4ade80; border: 1px solid #22c55e40; }
+        .status-msg.info { display: block; background: #3b82f620; color: #60a5fa; border: 1px solid #3b82f640; }
+
+        /* 가이드 박스 */
+        .guide-box {
+            background: #0f1117;
+            border: 1px solid #1f222c;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .guide-box h4 {
+            font-size: 13px;
+            color: #60a5fa;
+            margin-bottom: 10px;
+        }
+        .guide-box ol {
+            padding-left: 18px;
+            font-size: 12px;
+            line-height: 1.8;
+            color: #aaa;
+        }
+        .guide-box ol li { margin-bottom: 2px; }
+        .guide-box a {
+            color: #60a5fa;
+            text-decoration: none;
+        }
+        .guide-box a:hover { text-decoration: underline; }
+        .guide-box code {
+            background: #1a1d27;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 11px;
+            color: #fbbf24;
+        }
+
+        /* 완료 화면 */
+        .done-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: #22c55e20;
+            color: #22c55e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin: 0 auto 16px;
+        }
+        .done-text { text-align: center; }
+
+        /* 계정 리스트 */
+        .account-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: #0f1117;
+            border: 1px solid #1f222c;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        .account-item .dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #22c55e;
+        }
+        .account-item .dot.inactive { background: #666; }
+
+        .or-divider {
+            text-align: center;
+            color: #555;
+            font-size: 12px;
+            margin: 16px 0;
+            position: relative;
+        }
+        .or-divider::before, .or-divider::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 40%;
+            height: 1px;
+            background: #2a2d37;
+        }
+        .or-divider::before { left: 0; }
+        .or-divider::after { right: 0; }
+    </style>
+</head>
+<body>
+    <div class="setup-container">
+        <div class="logo">
+            <h1>댓글 부스터</h1>
+            <p>유튜브 댓글 자동화 초기 셋업</p>
+        </div>
+
+        <!-- 스텝 인디케이터 -->
+        <div class="steps">
+            <div class="step-dot active" id="dot1">1</div>
+            <div class="step-line" id="line1"></div>
+            <div class="step-dot" id="dot2">2</div>
+            <div class="step-line" id="line2"></div>
+            <div class="step-dot" id="dot3">3</div>
+            <div class="step-line" id="line3"></div>
+            <div class="step-dot" id="dot4">4</div>
+        </div>
+
+        <!-- Step 1: 라이선스 -->
+        <div class="card active" id="step1">
+            <h2>라이선스 인증</h2>
+            <p class="subtitle">구매 시 받은 라이선스 키를 입력해주세요.</p>
+
+            <div class="form-group">
+                <label>라이선스 키</label>
+                <input type="text" id="licenseKey" placeholder="XXXX-XXXX-XXXX-XXXX" style="text-transform:uppercase; letter-spacing:1px;">
+            </div>
+
+            <div id="licenseMsg" class="status-msg"></div>
+
+            <div class="btn-row">
+                <button class="btn btn-primary" onclick="verifyLicense()">인증하기</button>
+            </div>
+        </div>
+
+        <!-- Step 2: 노션 연동 -->
+        <div class="card" id="step2">
+            <h2>노션 연동</h2>
+            <p class="subtitle">노션 API를 연결하고 댓글 작업용 데이터베이스를 설정합니다.</p>
+
+            <div class="guide-box">
+                <h4>노션 API 키 발급 방법</h4>
+                <ol>
+                    <li><a href="https://www.notion.so/my-integrations" target="_blank">notion.so/my-integrations</a> 접속</li>
+                    <li>"새 인테그레이션 만들기" 클릭</li>
+                    <li>이름 입력 (예: "댓글자동화") → 제출</li>
+                    <li>"내부 인테그레이션 시크릿" 복사</li>
+                    <li>사용할 노션 페이지에서 <code>···</code> → 연결 → 방금 만든 인테그레이션 추가</li>
+                </ol>
+            </div>
+
+            <div class="form-group">
+                <label>노션 API 토큰</label>
+                <input type="text" id="notionToken" placeholder="ntn_xxxxxxxxxxxx...">
+            </div>
+
+            <div class="or-divider">DB 설정</div>
+
+            {% if notion_template_url %}
+            <div style="margin-bottom:12px;">
+                <a href="{{ notion_template_url }}" target="_blank" id="setupPageTemplateLink"
+                   style="display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px 12px;background:linear-gradient(135deg,#6c5ce7,#7c3aed);color:#fff;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;cursor:pointer;transition:opacity 0.2s"
+                   onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                    &#128196; 노션 템플릿 복제하기 (추천)
+                </a>
+                <p style="font-size:11px;color:#999;text-align:center;margin-top:6px">템플릿을 노션에 복제한 뒤, 아래에서 DB ID를 연결하세요</p>
+            </div>
+            {% endif %}
+
+            <div style="display:flex;gap:10px;margin-bottom:16px;">
+                <button class="btn btn-success" style="flex:1;" onclick="createNotionTemplate()">새 DB 자동 생성</button>
+                <button class="btn btn-outline" onclick="toggleManualDb()">기존 DB 연결</button>
+            </div>
+
+            <div id="manualDbSection" style="display:none;">
+                <div class="form-group">
+                    <label>기존 데이터베이스 ID</label>
+                    <input type="text" id="notionDbId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" oninput="onManualDbInput(this.value)">
+                    <div class="hint">노션 DB 페이지 URL에서 ? 앞의 32자리 ID를 복사하세요</div>
+                </div>
+            </div>
+
+            <div id="templateSection" style="display:none;">
+                <div class="form-group">
+                    <label>DB를 만들 상위 페이지 ID</label>
+                    <input type="text" id="parentPageId" placeholder="페이지 URL에서 마지막 32자리 복사">
+                    <div class="hint">노션에서 빈 페이지를 하나 만들고, 그 페이지 URL의 마지막 32자리를 붙여넣으세요</div>
+                </div>
+                <button class="btn btn-success" style="width:100%;margin-top:8px;" onclick="doCreateTemplate()">DB 템플릿 생성</button>
+            </div>
+
+            <div id="notionMsg" class="status-msg"></div>
+
+            <div class="btn-row">
+                <button class="btn btn-secondary" onclick="goStep(1)">이전</button>
+                <button class="btn btn-primary" id="notionNextBtn" onclick="saveNotion()" disabled>다음</button>
+            </div>
+        </div>
+
+        <!-- Step 3: YouTube 계정 -->
+        <div class="card" id="step3">
+            <h2>YouTube 계정 등록</h2>
+            <p class="subtitle">댓글 작성에 사용할 YouTube(Google) 계정을 등록합니다.<br>셋업 후 대시보드에서 추가/수동 로그인이 가능합니다.</p>
+
+            <div class="guide-box">
+                <h4>계정 등록 안내</h4>
+                <ol>
+                    <li>아래에 Google 계정 이메일을 입력합니다</li>
+                    <li>대시보드에서 "수동 로그인" 버튼으로 브라우저가 열립니다</li>
+                    <li>Google 로그인을 직접 진행하면 쿠키가 자동 저장됩니다</li>
+                    <li>이후 자동화 시 해당 계정으로 댓글이 작성됩니다</li>
+                </ol>
+            </div>
+
+            <div id="accountList"></div>
+
+            <div style="display:flex;gap:8px;margin-top:12px;">
+                <input type="text" id="newAccountEmail" placeholder="google@gmail.com" style="flex:1;padding:10px 14px;border:1px solid #2a2d37;border-radius:8px;background:#0a0b10;color:#e0e0e0;font-size:13px;">
+                <input type="text" id="newAccountLabel" placeholder="별칭 (선택)" style="width:120px;padding:10px 14px;border:1px solid #2a2d37;border-radius:8px;background:#0a0b10;color:#e0e0e0;font-size:13px;">
+                <button class="btn btn-primary" style="flex:0;padding:10px 14px;" onclick="addAccount()">추가</button>
+            </div>
+            <div class="hint" style="margin-top:4px;font-size:11px;color:#666;">로그인은 대시보드에서 진행합니다. 여기서는 계정 정보만 등록합니다.</div>
+
+            <div id="accountMsg" class="status-msg"></div>
+
+            <div class="btn-row">
+                <button class="btn btn-secondary" onclick="goStep(2)">이전</button>
+                <button class="btn btn-primary" onclick="goStep(4)">다음</button>
+            </div>
+        </div>
+
+        <!-- Step 4: 완료 -->
+        <div class="card" id="step4">
+            <div class="done-icon">✓</div>
+            <div class="done-text">
+                <h2>셋업 완료!</h2>
+                <p class="subtitle" style="margin-top:8px;">
+                    모든 초기 설정이 완료되었습니다.<br>
+                    대시보드에서 계정 로그인 후 작업을 시작하세요.
+                </p>
+            </div>
+
+            <div style="background:#0f1117;border:1px solid #1f222c;border-radius:10px;padding:16px;margin:20px 0;">
+                <div style="font-size:13px;margin-bottom:8px;color:#888;">셋업 결과</div>
+                <div id="setupSummary" style="font-size:13px;line-height:2;"></div>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-success" onclick="location.href='/'">대시보드로 이동</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // 복제 방지
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('dragstart', e => e.preventDefault());
+    document.addEventListener('copy', e => e.preventDefault());
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'F12') { e.preventDefault(); return; }
+        if (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) { e.preventDefault(); return; }
+        if (e.ctrlKey && ['U','S','C','A','P'].includes(e.key.toUpperCase())) { e.preventDefault(); return; }
+    });
+    </script>
+    <script>
+        let currentStep = 1;
+        let setupData = {
+            licenseOk: false,
+            notionOk: false,
+            notionDbId: '',
+            accounts: [],
+        };
+
+        // ─── 스텝 네비게이션 ───
+
+        function goStep(n) {
+            document.getElementById('step' + currentStep).classList.remove('active');
+            document.getElementById('step' + n).classList.add('active');
+
+            for (let i = 1; i <= 4; i++) {
+                const dot = document.getElementById('dot' + i);
+                dot.classList.remove('active', 'done');
+                if (i < n) dot.classList.add('done');
+                else if (i === n) dot.classList.add('active');
+
+                if (i < 4) {
+                    const line = document.getElementById('line' + i);
+                    line.classList.toggle('done', i < n);
+                }
+            }
+            currentStep = n;
+
+            if (n === 4) loadSummary();
+        }
+
+        function showMsg(id, type, text) {
+            const el = document.getElementById(id);
+            el.className = 'status-msg ' + type;
+            el.textContent = text;
+        }
+        function hideMsg(id) {
+            document.getElementById(id).className = 'status-msg';
+            document.getElementById(id).style.display = 'none';
+        }
+
+        // ─── Step 1: 라이선스 ───
+
+        async function verifyLicense() {
+            const key = document.getElementById('licenseKey').value.trim();
+            if (!key) { showMsg('licenseMsg', 'error', '라이선스 키를 입력해주세요.'); return; }
+
+            showMsg('licenseMsg', 'info', '인증 중...');
+            try {
+                const resp = await fetch('/api/license/activate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({license_key: key}),
+                });
+                const data = await resp.json();
+
+                if (data.valid) {
+                    const plan = data.license ? data.license.plan : 'Active';
+                    showMsg('licenseMsg', 'success', `인증 성공! 플랜: ${plan}`);
+                    setupData.licenseOk = true;
+                    setTimeout(() => goStep(2), 800);
+                } else {
+                    showMsg('licenseMsg', 'error', data.error || '인증 실패');
+                }
+            } catch (e) {
+                showMsg('licenseMsg', 'error', '서버 연결 실패. 인터넷 연결을 확인해주세요.');
+            }
+        }
+
+        // ─── Step 2: 노션 ───
+
+        let createMode = true;
+
+        function onManualDbInput(val) {
+            const cleaned = val.trim().replace(/-/g, '');
+            document.getElementById('notionNextBtn').disabled = cleaned.length < 32;
+        }
+
+        function toggleManualDb() {
+            const manual = document.getElementById('manualDbSection');
+            const template = document.getElementById('templateSection');
+            if (manual.style.display === 'none') {
+                manual.style.display = 'block';
+                template.style.display = 'none';
+                createMode = false;
+            } else {
+                manual.style.display = 'none';
+                createMode = true;
+            }
+        }
+
+        function createNotionTemplate() {
+            document.getElementById('templateSection').style.display = 'block';
+            document.getElementById('manualDbSection').style.display = 'none';
+            createMode = true;
+        }
+
+        async function doCreateTemplate() {
+            const token = document.getElementById('notionToken').value.trim();
+            const parentId = document.getElementById('parentPageId').value.trim().replace(/-/g, '');
+
+            if (!token) { showMsg('notionMsg', 'error', '노션 API 토큰을 먼저 입력해주세요.'); return; }
+            if (!parentId) { showMsg('notionMsg', 'error', '상위 페이지 ID를 입력해주세요.'); return; }
+
+            showMsg('notionMsg', 'info', 'DB 템플릿 생성 중...');
+            try {
+                const resp = await fetch('/api/setup/notion/create-template', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({notion_token: token, parent_page_id: parentId}),
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    setupData.notionDbId = data.database_id;
+                    setupData.notionOk = true;
+                    document.getElementById('notionNextBtn').disabled = false;
+                    let msg = `DB 생성 완료! ID: ${data.database_id.slice(0,8)}...`;
+                    if (data.url) msg += ` | 노션에서 확인하기`;
+                    showMsg('notionMsg', 'success', msg);
+                } else {
+                    showMsg('notionMsg', 'error', data.error || 'DB 생성 실패');
+                }
+            } catch (e) {
+                showMsg('notionMsg', 'error', '서버 연결 실패');
+            }
+        }
+
+        async function saveNotion() {
+            const token = document.getElementById('notionToken').value.trim();
+            let dbId = setupData.notionDbId || document.getElementById('notionDbId').value.trim().replace(/-/g, '');
+
+            if (!token) { showMsg('notionMsg', 'error', '노션 API 토큰을 입력해주세요.'); return; }
+
+            if (!createMode && !dbId) {
+                showMsg('notionMsg', 'error', '데이터베이스 ID를 입력해주세요.');
+                return;
+            }
+
+            showMsg('notionMsg', 'info', '저장 중...');
+            try {
+                const resp = await fetch('/api/setup/notion/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({notion_token: token, database_id: dbId}),
+                });
+                if (!resp.ok) {
+                    const text = await resp.text();
+                    try {
+                        const errData = JSON.parse(text);
+                        showMsg('notionMsg', 'error', errData.error || `서버 오류 (${resp.status})`);
+                    } catch (_) {
+                        showMsg('notionMsg', 'error', `서버 오류 (${resp.status}): ${text.slice(0, 200)}`);
+                    }
+                    return;
+                }
+                const data = await resp.json();
+
+                if (data.success || data.user) {
+                    setupData.notionOk = true;
+                    showMsg('notionMsg', 'success', `노션 연결 완료! (${data.user || ''})`);
+                    setTimeout(() => goStep(3), 800);
+                } else {
+                    showMsg('notionMsg', 'error', data.error || '저장 실패');
+                }
+            } catch (e) {
+                showMsg('notionMsg', 'error', '서버 연결 실패: ' + e.message);
+            }
+        }
+
+        // ─── Step 3: 계정 ───
+
+        function renderAccounts() {
+            const list = document.getElementById('accountList');
+            if (setupData.accounts.length === 0) {
+                list.innerHTML = '<div style="text-align:center;padding:20px;color:#555;font-size:13px;">등록된 계정이 없습니다</div>';
+                return;
+            }
+            list.innerHTML = setupData.accounts.map((acc, i) => `
+                <div class="account-item">
+                    <span class="dot inactive"></span>
+                    <span style="flex:1;">${acc.email}</span>
+                    <span style="color:#888;font-size:12px;">${acc.label || ''}</span>
+                    <span style="color:#888;font-size:11px;">로그인 대기</span>
+                </div>
+            `).join('');
+        }
+
+        function addAccount() {
+            const email = document.getElementById('newAccountEmail').value.trim();
+            const label = document.getElementById('newAccountLabel').value.trim();
+
+            if (!email || !email.includes('@')) {
+                showMsg('accountMsg', 'error', '올바른 이메일을 입력해주세요.');
+                return;
+            }
+
+            if (setupData.accounts.find(a => a.email === email)) {
+                showMsg('accountMsg', 'error', '이미 등록된 이메일입니다.');
+                return;
+            }
+
+            setupData.accounts.push({email, label: label || email.split('@')[0]});
+            document.getElementById('newAccountEmail').value = '';
+            document.getElementById('newAccountLabel').value = '';
+            renderAccounts();
+            hideMsg('accountMsg');
+        }
+
+        renderAccounts();
+
+        // ─── Step 4: 완료 ───
+
+        async function loadSummary() {
+            try {
+                const resp = await fetch('/api/setup/check');
+                const data = await resp.json();
+
+                const html = `
+                    <div style="display:flex;justify-content:space-between;">
+                        <span>라이선스</span>
+                        <span style="color:${data.license.ok ? '#22c55e' : '#ef4444'}">
+                            ${data.license.ok ? '✓ ' + (data.license.plan || '인증됨') : '✗ 미인증'}
+                        </span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;">
+                        <span>노션 연동</span>
+                        <span style="color:${data.notion.verified ? '#22c55e' : data.notion.ok ? '#fbbf24' : '#ef4444'}">
+                            ${data.notion.verified ? '✓ 연결됨' : data.notion.ok ? '△ 토큰 저장됨 (DB 확인 필요)' : '✗ 미연결'}
+                        </span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;">
+                        <span>YouTube 계정</span>
+                        <span style="color:${data.accounts.ok ? '#22c55e' : '#fbbf24'}">
+                            ${data.accounts.ok ? '✓ ' + data.accounts.count + '개 등록' : '△ ' + setupData.accounts.length + '개 입력 (로그인 필요)'}
+                        </span>
+                    </div>
+                `;
+                document.getElementById('setupSummary').innerHTML = html;
+            } catch (e) {
+                document.getElementById('setupSummary').innerHTML = '<span style="color:#888;">상태 확인 실패</span>';
+            }
+        }
+
+        // ─── 초기 상태 확인 ───
+
+        async function checkInitialState() {
+            try {
+                const resp = await fetch('/api/setup/check');
+                const data = await resp.json();
+
+                // 이미 셋업 완료된 경우 대시보드로 리다이렉트
+                if (data.all_done) {
+                    location.href = '/';
+                    return;
+                }
+
+                // Owner 모드면 바로 대시보드
+                const licResp = await fetch('/api/license/status');
+                const licData = await licResp.json();
+                if (licData.owner_mode) {
+                    location.href = '/';
+                    return;
+                }
+
+                // 라이선스가 이미 있으면 2단계부터
+                if (data.license.ok) {
+                    setupData.licenseOk = true;
+                    goStep(2);
+                }
+            } catch (e) {
+                // 무시
+            }
+        }
+
+        checkInitialState();
+    </script>
+</body>
+</html>

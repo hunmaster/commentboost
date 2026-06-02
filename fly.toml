@@ -1,0 +1,12 @@
+# ============================================
+# 이 파일은 더 이상 사용되지 않습니다.
+# ============================================
+# 메인 앱은 로컬 PC에서 실행됩니다 (start.bat).
+#
+# Fly.io 배포 대상:
+#   - 랜딩 페이지: landing/fly.toml  (commentboost.cloud)
+#   - 라이선스 서버: license_server/fly.toml (api.commentboost.cloud)
+#
+# 배포 방법:
+#   cd landing && fly deploy
+#   cd license_server && fly deploy

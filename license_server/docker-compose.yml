@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  license-server:
+    build: .
+    container_name: license-server
+    ports:
+      - "5100:5100"
+    volumes:
+      - license_data:/data
+    environment:
+      - LICENSE_ADMIN_KEY=${LICENSE_ADMIN_KEY:-change-me-in-production}
+      - LICENSE_PORT=5100
+    restart: unless-stopped
+
+volumes:
+  license_data:

@@ -1,0 +1,8 @@
+{
+    "version": "1.0.0",
+    "build": 1,
+    "release_date": "2026-03-15",
+    "min_version": "1.0.0",
+    "changelog": "초기 릴리즈",
+    "download_url": "commentboost-latest.zip"
+}

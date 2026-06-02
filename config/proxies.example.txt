@@ -1,0 +1,8 @@
+# 프록시 목록 - 한 줄에 하나씩
+# 형식: protocol://host:port 또는 protocol://user:pass@host:port
+# 부계정 작업 시 계정마다 다른 프록시 사용
+#
+# 예시:
+# http://123.45.67.89:8080
+# http://user:pass@proxy1.example.com:3128
+# socks5://user:pass@proxy2.example.com:1080
