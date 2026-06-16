@@ -76,15 +76,10 @@ class YouTubeAccount(db.Model):
     account_type = db.Column(db.String(50), default="google")
     cookies_saved = db.Column(db.Boolean, default=False)
     channel_terminated = db.Column(db.Boolean, default=False)
-    warming_started_at = db.Column(db.DateTime, nullable=True)   # 워밍업 시작일 (None = 워밍업 안 함)
-    warming_days = db.Column(db.Integer, default=14)              # 워밍업 기간 (일)
-    last_warming_at = db.Column(db.DateTime, nullable=True)       # 마지막 워밍업 세션 실행 시각
-    warming_paused = db.Column(db.Boolean, default=False)         # 로그인 실패로 일시중지 (사용자 확인 필요)
     last_comment_at = db.Column(db.DateTime, nullable=True)       # 마지막 댓글 작성 시각
     daily_comment_limit = db.Column(db.Integer, default=10)       # 계정별 일일 댓글 한도 (기본 10)
     interest_keywords = db.Column(db.Text, nullable=True)         # 관심사 키워드 (JSON array)
     created_at = db.Column(db.DateTime, default=_now_kst)
-    warming_logs = db.relationship("WarmingLog", backref="account", lazy="dynamic", cascade="all, delete-orphan")
     updated_at = db.Column(db.DateTime, default=_now_kst, onupdate=_now_kst)
 
     def get_interest_keywords(self):
@@ -112,30 +107,7 @@ class YouTubeAccount(db.Model):
                 break
         self.interest_keywords = json.dumps(clean, ensure_ascii=False)
 
-    @property
-    def warming_day_num(self):
-        """워밍업 시작 후 경과 일수 (시작 전 또는 완료 시 0)."""
-        if not self.warming_started_at:
-            return 0
-        import datetime
-        delta = (_now_kst() - self.warming_started_at).days + 1
-        return max(1, min(delta, self.warming_days))
-
-    @property
-    def is_warming(self):
-        """워밍업 기간 중이면 True (댓글 작업 금지)."""
-        if not self.warming_started_at:
-            return False
-        import datetime
-        elapsed = (_now_kst() - self.warming_started_at).days
-        return elapsed < (self.warming_days or 14)
-
     def to_dict(self):
-        import datetime
-        warming_remaining = 0
-        if self.warming_started_at:
-            elapsed = (_now_kst() - self.warming_started_at).days
-            warming_remaining = max(0, (self.warming_days or 14) - elapsed)
         return {
             "id": self.id,
             "email": self.account_email,
@@ -143,13 +115,6 @@ class YouTubeAccount(db.Model):
             "account_type": self.account_type,
             "cookies_saved": self.cookies_saved,
             "channel_terminated": self.channel_terminated or False,
-            "is_warming": self.is_warming,
-            "warming_day_num": self.warming_day_num,
-            "warming_remaining": warming_remaining,
-            "warming_days": self.warming_days or 14,
-            "warming_started_at": self.warming_started_at.isoformat() if self.warming_started_at else None,
-            "last_warming_at": self.last_warming_at.isoformat() if self.last_warming_at else None,
-            "warming_paused": self.warming_paused or False,
             "last_comment_at": self.last_comment_at.isoformat() if self.last_comment_at else None,
             "daily_comment_limit": self.daily_comment_limit or 10,
             "interest_keywords": self.get_interest_keywords(),
@@ -165,8 +130,6 @@ class YouTubeAccount(db.Model):
             "label": self.label or self.account_email.split("@")[0],
             "account_type": self.account_type or "sub",
             "channel_terminated": self.channel_terminated or False,
-            "is_warming": self.is_warming,
-            "warming_day_num": self.warming_day_num,
             "last_comment_at": self.last_comment_at.isoformat() if self.last_comment_at else None,
             "daily_comment_limit": self.daily_comment_limit or 10,
             "interest_keywords": self.get_interest_keywords(),
@@ -192,8 +155,6 @@ class UserSettings(db.Model):
         "SMM_LIKE_QUANTITY": "20",
         "SMM_LIKE_AUTO_MAX": "500",
         "HEADLESS": "false",
-        "WARMING_HEADLESS": "true",
-        "WARMING_AUTO_ENABLED": "false",
         "ADB_IP_CHANGE_ENABLED": "false",
         "ADB_PATH": "D:\\platform-tools\\adb.exe",
         "ADB_AIRPLANE_WAIT": "4",
@@ -246,49 +207,6 @@ class AccountType(db.Model):
             "id": self.id,
             "name": self.name,
             "color": self.color,
-        }
-
-
-class WarmingLog(db.Model):
-    """워밍업 세션 로그 (계정별 상세 기록)."""
-    __tablename__ = "warming_logs"
-
-    id = db.Column(db.Integer, primary_key=True)
-    account_id = db.Column(db.Integer, db.ForeignKey("youtube_accounts.id"), nullable=False, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
-    day_num = db.Column(db.Integer, default=1)
-    watched_total = db.Column(db.Integer, default=0)
-    watched_longform = db.Column(db.Integer, default=0)   # 60초 초과 영상
-    watched_shortform = db.Column(db.Integer, default=0)  # 60초 이하 숏폼
-    total_duration_sec = db.Column(db.Integer, default=0) # 총 시청 초
-    liked = db.Column(db.Integer, default=0)
-    subscribed = db.Column(db.Integer, default=0)
-    status = db.Column(db.String(50), default="success")  # success, login_failed, suspended, error
-    watched_topics_json = db.Column(db.Text, nullable=True)  # 시청 영상 리스트 (JSON): [{keyword,title,duration,is_short}]
-    created_at = db.Column(db.DateTime, default=_now_kst)
-
-    def get_watched_topics(self):
-        if not self.watched_topics_json:
-            return []
-        try:
-            return json.loads(self.watched_topics_json)
-        except Exception:
-            return []
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "account_id": self.account_id,
-            "day_num": self.day_num,
-            "watched_total": self.watched_total,
-            "watched_longform": self.watched_longform,
-            "watched_shortform": self.watched_shortform,
-            "total_duration_sec": self.total_duration_sec,
-            "liked": self.liked,
-            "subscribed": self.subscribed,
-            "status": self.status,
-            "watched_topics": self.get_watched_topics(),
-            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 

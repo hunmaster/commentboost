@@ -348,28 +348,12 @@ with app.app_context():
             _cursor.execute("ALTER TABLE youtube_accounts ADD COLUMN account_password VARCHAR(500)")
         if _yt_cols and "channel_terminated" not in _yt_cols:
             _cursor.execute("ALTER TABLE youtube_accounts ADD COLUMN channel_terminated BOOLEAN DEFAULT 0")
-        if _yt_cols and "warming_started_at" not in _yt_cols:
-            _cursor.execute("ALTER TABLE youtube_accounts ADD COLUMN warming_started_at DATETIME")
-        if _yt_cols and "warming_days" not in _yt_cols:
-            _cursor.execute("ALTER TABLE youtube_accounts ADD COLUMN warming_days INTEGER DEFAULT 14")
-        if _yt_cols and "last_warming_at" not in _yt_cols:
-            _cursor.execute("ALTER TABLE youtube_accounts ADD COLUMN last_warming_at DATETIME")
-        if _yt_cols and "warming_paused" not in _yt_cols:
-            _cursor.execute("ALTER TABLE youtube_accounts ADD COLUMN warming_paused BOOLEAN DEFAULT 0")
         if _yt_cols and "last_comment_at" not in _yt_cols:
             _cursor.execute("ALTER TABLE youtube_accounts ADD COLUMN last_comment_at DATETIME")
         if _yt_cols and "daily_comment_limit" not in _yt_cols:
             _cursor.execute("ALTER TABLE youtube_accounts ADD COLUMN daily_comment_limit INTEGER DEFAULT 10")
         if _yt_cols and "interest_keywords" not in _yt_cols:
             _cursor.execute("ALTER TABLE youtube_accounts ADD COLUMN interest_keywords TEXT")
-        # warming_logs에 watched_topics_json 추가
-        try:
-            _cursor.execute("PRAGMA table_info(warming_logs)")
-            _wl_cols = {row[1] for row in _cursor.fetchall()}
-            if _wl_cols and "watched_topics_json" not in _wl_cols:
-                _cursor.execute("ALTER TABLE warming_logs ADD COLUMN watched_topics_json TEXT")
-        except Exception:
-            pass
         _conn.commit()
         _conn.close()
     # 새 테이블도 생성 (youtube_accounts, comment_tracking, user_settings)
@@ -446,387 +430,6 @@ def _auto_sync_like_orders():
 
 
 threading.Thread(target=_auto_sync_like_orders, daemon=True).start()
-
-
-# ── 계정 워밍업 자동 스케줄러 ──
-_WARMING_INTERVAL_HOURS = 24       # 계정당 워밍업 최소 간격 (시간)
-_WARMING_ACTIVE_HOUR_START = 9     # 워밍업 실행 허용 시작 시각 (시)
-_WARMING_ACTIVE_HOUR_END = 23      # 워밍업 실행 허용 종료 시각 (시)
-
-# 종료 시 Chromium 정리용 — 현재 실행 중인 봇 참조
-_active_warming_bot = None
-
-# 워밍업 실시간 상태 (프론트엔드 폴링용)
-warming_state = {
-    "running": False,
-    "auto_enabled": False,         # 자동 스케줄러 on/off (DB에서 로드됨)
-    "stop_requested": False,       # 사용자가 강제 중지 요청
-    "accounts_total": 0,
-    "accounts_done": 0,
-    "current_label": None,
-    "current_video": 0,
-    "total_videos": 0,
-    "current_topic": None,
-    "session_results": [],         # [{label, status, watched, liked, subscribed}]
-    "last_run": None,
-    "pending_approval": False,     # 사용자 승인 대기 중
-    "pending_count": 0,            # 승인 대기 중인 계정 수
-    "_pending_ids": [],            # 내부용: 승인 대기 계정 id 목록
-}
-
-
-def _warming_scheduler_loop():
-    """백그라운드 워밍업 스케줄러: 매 시간 체크하고, 24시간 이상 워밍업이 안 된 계정에 세션 실행."""
-    import datetime as _dt
-    time.sleep(60)  # 앱 시작 후 1분 대기
-
-    while True:
-        try:
-            now = _dt.datetime.now()
-            # DB에서 자동 워밍업 설정 확인 (메모리 상태와 동기화)
-            try:
-                with app.app_context():
-                    from src.models import UserSettings as _US
-                    _any_auto = False
-                    for _us in _US.query.all():
-                        if _us.get("WARMING_AUTO_ENABLED", "false") == "true":
-                            _any_auto = True
-                            break
-                    warming_state["auto_enabled"] = _any_auto
-            except Exception:
-                pass
-            # 자동 비활성화이거나 허용 시간대 밖이면 스킵
-            if not warming_state.get("auto_enabled", False):
-                time.sleep(3600)
-                continue
-            if _WARMING_ACTIVE_HOUR_START <= now.hour < _WARMING_ACTIVE_HOUR_END:
-                with app.app_context():
-                    # 모든 유저의 모든 계정 조회
-                    all_accounts = YouTubeAccount.query.filter_by(channel_terminated=False).all()
-                    cutoff = now - _dt.timedelta(hours=_WARMING_INTERVAL_HOURS)
-
-                    due_accounts = [
-                        acc for acc in all_accounts
-                        if acc.warming_started_at is not None  # 신규 계정추가로 워밍업 활성화된 계정만
-                        and acc.is_warming                      # 14일 기간 이내
-                        and not acc.warming_paused              # 로그인 실패로 일시중지된 계정 제외
-                        and (acc.last_warming_at is None or acc.last_warming_at < cutoff)
-                        and not acc.channel_terminated
-                    ]
-
-                    if due_accounts and not warming_state["running"]:
-                        # 자동 실행 대신 사용자 승인 대기로 변경
-                        warming_state["pending_approval"] = True
-                        warming_state["pending_count"] = len(due_accounts)
-                        warming_state["_pending_ids"] = [acc.id for acc in due_accounts]
-                        add_log(f"[워밍업 스케줄러] {len(due_accounts)}개 계정 승인 대기 중 (사용자 확인 필요)", "info")
-
-        except Exception as e:
-            try:
-                add_log(f"[워밍업 스케줄러] 오류: {str(e)}", "warning")
-            except Exception:
-                pass
-
-        # 1시간마다 체크
-        time.sleep(3600)
-
-
-def _run_warming_for_accounts(accounts, continuous=False):
-    """주어진 계정 목록에 대해 순차적으로 워밍업 세션을 실행합니다 (스케줄러/수동 공용).
-    continuous=True 이면 stop_requested 될 때까지 라운드를 반복합니다.
-    """
-    # Full Auto 실행 중이면 워밍업 중단
-    if automation_state.get("running", False):
-        add_log("[워밍업] Full Auto 실행 중 → 워밍업 스케줄러 대기", "info")
-        return
-
-    from src.youtube_bot import YouTubeBot
-    from src.models import WarmingLog
-    try:
-        from src.fingerprint import FingerprintManager
-        fingerprint_manager = FingerprintManager()
-    except Exception:
-        fingerprint_manager = None
-
-    import datetime as _dt_w
-
-    warming_state["running"] = True
-    warming_state["stop_requested"] = False
-    warming_state["continuous"] = continuous
-    warming_state["round_num"] = 1
-    warming_state["accounts_total"] = len(accounts)
-    warming_state["accounts_done"] = 0
-    warming_state["session_results"] = []
-    warming_state["last_run"] = _dt_w.datetime.now().isoformat()
-
-    def _run_one_round(accounts_list):
-        """계정 목록 1순환 실행. stop_requested 이면 즉시 중단."""
-        warming_state["accounts_done"] = 0
-        warming_state["session_results"] = []
-
-        for acc in accounts_list:
-            if warming_state.get("stop_requested"):
-                add_log("[워밍업] 사용자 중지 요청 — 워밍업 중단", "warning")
-                return False  # 중단됨
-            label = acc.label or acc.account_email.split("@")[0]
-            day_num = acc.warming_day_num if acc.is_warming else 2  # 유지관리는 D+2 수준
-            maintenance_mode = not acc.is_warming
-
-            warming_state["current_label"] = label
-            warming_state["current_video"] = 0
-            warming_state["total_videos"] = 0
-            warming_state["current_topic"] = None
-
-            add_log(
-                f"[워밍업] {label} {'(유지관리)' if maintenance_mode else f'D+{day_num}'} 세션 시작",
-                "info"
-            )
-
-            # WARMING_HEADLESS 설정 반영 (기본: true=백그라운드, 설정에서 변경 가능)
-            try:
-                with app.app_context():
-                    from src.models import UserSettings
-                    _usr_settings = UserSettings.query.filter_by(user_id=acc.user_id).first()
-                    _warming_headless = (_usr_settings.get("WARMING_HEADLESS", "true") if _usr_settings else "true")
-                    os.environ["HEADLESS"] = "true" if _warming_headless != "false" else "false"
-            except Exception:
-                os.environ["HEADLESS"] = "true"
-
-            bot = YouTubeBot(
-                fingerprint_manager=fingerprint_manager,
-                account_label=label,
-                user_id=acc.user_id,
-            )
-            global _active_warming_bot
-            _active_warming_bot = bot
-            session_entry = {"label": label, "status": "unknown", "watched": 0, "liked": 0, "subscribed": 0}
-
-            try:
-                bot.start_browser()
-                login_ok = bot.login_youtube(acc.account_email, acc.account_password or "")
-
-                if not login_ok:
-                    # 로그인 실패 → 정지 여부 감지 시도
-                    suspended = False
-                    _SUSPENDED_TEXTS = [
-                        "계정이 정지", "account has been suspended",
-                        "이 계정은 정지", "비활성화되었습니다",
-                    ]
-                    try:
-                        bot.page.goto("https://myaccount.google.com", wait_until="domcontentloaded", timeout=15000)
-                        time.sleep(2)
-                        body = bot.page.inner_text("body") or ""
-                        if any(t in body for t in _SUSPENDED_TEXTS):
-                            suspended = True
-                    except Exception:
-                        pass
-
-                    if suspended:
-                        add_log(f"[워밍업] {label} Google 계정 정지 감지 — 비활성화", "error")
-                        session_entry["status"] = "suspended"
-                        try:
-                            with app.app_context():
-                                _acc_db = YouTubeAccount.query.get(acc.id)
-                                if _acc_db:
-                                    _acc_db.channel_terminated = True
-                                    db.session.commit()
-                        except Exception:
-                            pass
-                    else:
-                        add_log(f"[워밍업] {label} 로그인 실패 — 워밍업 일시중지 (계정 확인 필요)", "warning")
-                        session_entry["status"] = "login_failed"
-                        # 로그인 실패 → warming_paused 설정 (사용자 확인 전까지 스케줄러 제외)
-                        try:
-                            with app.app_context():
-                                _acc_db = YouTubeAccount.query.get(acc.id)
-                                if _acc_db:
-                                    _acc_db.warming_paused = True
-                                    db.session.commit()
-                        except Exception:
-                            pass
-
-                    warming_state["session_results"].append(session_entry)
-                    warming_state["accounts_done"] += 1
-                    continue
-
-                # 로그인 성공 → 쿠키 즉시 저장 (수동로그인과 동일하게)
-                try:
-                    bot.save_cookies()
-                    with app.app_context():
-                        _acc_db = YouTubeAccount.query.get(acc.id)
-                        if _acc_db:
-                            _acc_db.cookies_saved = True
-                            _acc_db.warming_paused = False  # 성공 시 일시중지 해제
-                            db.session.commit()
-                    add_log(f"[워밍업] {label} 로그인 성공 — 쿠키 저장 완료", "success")
-                except Exception as _ce:
-                    add_log(f"[워밍업] {label} 쿠키 저장 실패: {_ce}", "warning")
-
-                # 진행 상황 콜백
-                def _on_progress(video_idx, total, topic, _label=label):
-                    warming_state["current_video"] = video_idx
-                    warming_state["total_videos"] = total
-                    warming_state["current_topic"] = topic
-                    add_log(f"[워밍업] {_label} [{video_idx}/{total}] '{topic}' 시청 중", "info")
-
-                # 계정별 관심사 키워드 로드
-                _interest_kws = []
-                try:
-                    with app.app_context():
-                        _acc_kw = YouTubeAccount.query.get(acc.id)
-                        if _acc_kw:
-                            _interest_kws = _acc_kw.get_interest_keywords()
-                except Exception:
-                    _interest_kws = []
-
-                result = bot.run_warming_session(
-                    day_num=day_num,
-                    on_progress=_on_progress,
-                    interest_keywords=_interest_kws,
-                )
-
-                # last_warming_at 업데이트 (오류여도 시도했으므로 기록)
-                try:
-                    with app.app_context():
-                        _acc_db = YouTubeAccount.query.get(acc.id)
-                        if _acc_db:
-                            _acc_db.last_warming_at = _dt_w.datetime.now()
-                            db.session.commit()
-                except Exception:
-                    pass
-
-                err = result.get("error")
-                _log_status = "error"
-                if err == "not_logged_in":
-                    add_log(f"[워밍업] {label} 브라우저 진입 후 로그인 미확인 — 쿠키 만료 가능성", "warning")
-                    session_entry["status"] = "login_failed"
-                    _log_status = "login_failed"
-                elif err == "suspended":
-                    add_log(f"[워밍업] {label} 계정 정지 감지", "error")
-                    session_entry["status"] = "suspended"
-                    _log_status = "suspended"
-                elif err:
-                    add_log(f"[워밍업] {label} 세션 오류: {err}", "warning")
-                    session_entry["status"] = "error"
-                    _log_status = "error"
-                else:
-                    session_entry["status"] = "success"
-                    session_entry["watched"] = result["watched"]
-                    session_entry["liked"] = result["liked"]
-                    session_entry["subscribed"] = result["subscribed"]
-                    _log_status = "success"
-                    add_log(
-                        f"[워밍업] {label} 완료 — "
-                        f"시청 {result['watched']}개 (롱폼 {result.get('longform',0)}/숏폼 {result.get('shortform',0)}), "
-                        f"좋아요 {result['liked']}개, 구독 {result['subscribed']}개",
-                        "success"
-                    )
-
-                # WarmingLog DB 기록
-                try:
-                    import json as _json_wl
-                    _watched_items = result.get("watched_items") or []
-                    with app.app_context():
-                        _wlog = WarmingLog(
-                            account_id=acc.id,
-                            user_id=acc.user_id,
-                            day_num=day_num,
-                            watched_total=result.get("watched", 0),
-                            watched_longform=result.get("longform", 0),
-                            watched_shortform=result.get("shortform", 0),
-                            total_duration_sec=result.get("total_duration_sec", 0),
-                            liked=result.get("liked", 0),
-                            subscribed=result.get("subscribed", 0),
-                            status=_log_status,
-                            watched_topics_json=_json_wl.dumps(_watched_items, ensure_ascii=False) if _watched_items else None,
-                        )
-                        db.session.add(_wlog)
-                        db.session.commit()
-                except Exception as _wle:
-                    add_log(f"[워밍업] {label} WarmingLog 저장 실패: {_wle}", "warning")
-
-            except Exception as e:
-                add_log(f"[워밍업] {label} 예외: {str(e)}", "error")
-                session_entry["status"] = "error"
-            finally:
-                warming_state["session_results"].append(session_entry)
-                warming_state["accounts_done"] += 1
-                try:
-                    bot.close_browser()
-                except Exception:
-                    pass
-                _active_warming_bot = None
-
-            # 계정 사이: ADB IP 변경 (활성화된 경우) + 2~5분 대기
-            if not warming_state.get("stop_requested"):
-                # ADB IP 변경 시도
-                try:
-                    from src.adb_ip_changer import ADBIPChanger as _ADBChanger
-                    _adb = _ADBChanger()
-                    if _adb.enabled:
-                        connected, _info = _adb.check_device()
-                        if connected:
-                            add_log(f"[워밍업] 계정 전환 전 IP 변경 시도...", "info")
-                            _ok, _msg = _adb.toggle_airplane_mode()
-                            if _ok:
-                                add_log(f"[워밍업] IP 변경 완료: {_msg}", "success")
-                            else:
-                                add_log(f"[워밍업] IP 변경 실패: {_msg}", "warning")
-                        else:
-                            add_log("[워밍업] ADB 디바이스 미연결 — IP 변경 건너뜀", "warning")
-                except Exception as _adb_e:
-                    add_log(f"[워밍업] ADB 처리 오류: {_adb_e}", "warning")
-
-                _wait = random.randint(120, 300)
-                for _ in range(_wait):
-                    if warming_state.get("stop_requested"):
-                        break
-                    time.sleep(1)
-
-        return True  # 라운드 정상 완료
-
-    try:
-        while True:
-            add_log(
-                f"[워밍업] {'연속 실행 ' if continuous else ''}라운드 {warming_state['round_num']} 시작 "
-                f"({len(accounts)}개 계정)",
-                "info"
-            )
-            warming_state["last_run"] = _dt_w.datetime.now().isoformat()
-            completed = _run_one_round(accounts)
-
-            if not completed or not continuous:
-                break  # 일반 실행이거나 중지 요청 → 종료
-
-            if warming_state.get("stop_requested"):
-                break
-
-            # 연속 모드: 라운드 간 10~20분 대기 후 다음 라운드
-            warming_state["round_num"] += 1
-            _between = random.randint(600, 1200)
-            add_log(
-                f"[워밍업] 연속 실행 — 라운드 {warming_state['round_num']-1} 완료. "
-                f"{_between//60}분 후 라운드 {warming_state['round_num']} 시작",
-                "info"
-            )
-            for _ in range(_between):
-                if warming_state.get("stop_requested"):
-                    break
-                time.sleep(1)
-
-            if warming_state.get("stop_requested"):
-                break
-
-    finally:
-        warming_state["running"] = False
-        warming_state["continuous"] = False
-        warming_state["round_num"] = 1
-        warming_state["current_label"] = None
-        warming_state["current_video"] = 0
-        warming_state["current_topic"] = None
-
-
-threading.Thread(target=_warming_scheduler_loop, daemon=True).start()
 
 
 # ── 크레딧 실시간 동기화 (30초 폴링) ──
@@ -2770,7 +2373,6 @@ def api_get_settings():
         "COMMENT_INTERVAL_SEC": s.get("COMMENT_INTERVAL_SEC", "180"),
         "SAME_VIDEO_INTERVAL_MIN": s.get("SAME_VIDEO_INTERVAL_MIN", "30"),
         "HEADLESS": s.get("HEADLESS", "false"),
-        "WARMING_HEADLESS": s.get("WARMING_HEADLESS", "true"),
         "PRE_WATCH_COMMENT": s.get("PRE_WATCH_COMMENT", "false"),
         "ADB_IP_CHANGE_ENABLED": s.get("ADB_IP_CHANGE_ENABLED", "false"),
         "ADB_PATH": s.get("ADB_PATH", r"D:\platform-tools\adb.exe"),
@@ -2796,7 +2398,7 @@ def api_save_settings():
             "NOTION_API_TOKEN", "NOTION_DATABASE_ID",
             "SMM_LIKE_QUANTITY", "SMM_LIKE_AUTO_MAX", "LIKE_AUTO_TIER",
             "MAX_COMMENTS_PER_DAY", "COMMENT_INTERVAL_SEC", "SAME_VIDEO_INTERVAL_MIN",
-            "HEADLESS", "WARMING_HEADLESS", "PRE_WATCH_COMMENT",
+            "HEADLESS", "PRE_WATCH_COMMENT",
             "ADB_IP_CHANGE_ENABLED", "ADB_PATH", "ADB_AIRPLANE_WAIT",
             "ADB_AUTO_ETHERNET", "ADB_ETHERNET_NAME",
             "LIKE_CREDIT_THRESHOLD", "LIKE_CREDIT_AUTO_ALERT",
@@ -3343,7 +2945,7 @@ def api_adb_install_status():
 @app.route("/api/adb/device-status")
 @login_required
 def api_adb_device_status():
-    """ADB 연결 상태 및 디바이스 확인 (워밍업 시작 전 IP 분리 체크용)."""
+    """ADB 연결 상태 및 디바이스 확인 (IP 분리 체크용)."""
     changer = ADBIPChanger()
     connected, info = changer.check_device()
     enabled = changer.enabled
@@ -3518,26 +3120,8 @@ def api_adb_test():
 @login_required
 def api_get_accounts():
     """계정 목록을 반환합니다 (유저별 DB만 — 다른 유저의 계정은 절대 노출 안 됨)."""
-    from src.models import WarmingLog
     db_accounts = YouTubeAccount.query.filter_by(user_id=current_user.id).all()
-    # 성공 세션 수 한 번에 조회 (N+1 방지)
-    account_ids = [acc.id for acc in db_accounts]
-    success_counts = {}
-    if account_ids:
-        rows = db.session.query(
-            WarmingLog.account_id,
-            db.func.count(WarmingLog.id)
-        ).filter(
-            WarmingLog.account_id.in_(account_ids),
-            WarmingLog.status == "success"
-        ).group_by(WarmingLog.account_id).all()
-        success_counts = {row[0]: row[1] for row in rows}
-
-    safe_accounts = []
-    for acc in db_accounts:
-        d = acc.to_dict()
-        d["success_sessions"] = success_counts.get(acc.id, 0)
-        safe_accounts.append(d)
+    safe_accounts = [acc.to_dict() for acc in db_accounts]
     return jsonify({"accounts": safe_accounts})
 
 
@@ -3642,16 +3226,12 @@ def api_add_account():
         if existing:
             return jsonify({"error": "이미 등록된 이메일입니다."}), 409
 
-        import datetime as _dt_acc
-        _warming_days = int(data.get("warming_days", 14))
         new_acc = YouTubeAccount(
             user_id=current_user.id,
             account_email=email,
             account_password=data["password"],
             account_type=data.get("account_type", "부계정"),
             label=data.get("label", email.split("@")[0]),
-            warming_started_at=_dt_acc.datetime.now() if _warming_days > 0 else None,
-            warming_days=_warming_days,
         )
         db.session.add(new_acc)
         db.session.commit()
@@ -3712,165 +3292,6 @@ def api_delete_account(email):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"계정 삭제 중 오류: {str(e)}"}), 500
-
-
-@app.route("/api/accounts/warming/state", methods=["GET"])
-@login_required
-def api_warming_state():
-    """워밍업 실시간 진행 상태를 반환합니다 (프론트엔드 폴링용)."""
-    return jsonify(warming_state)
-
-
-@app.route("/api/accounts/warming/auto", methods=["POST"])
-@login_required
-def api_warming_auto():
-    """자동 워밍업 스케줄러 on/off 토글. DB에 저장해 재시작 후에도 유지."""
-    data = request.get_json() or {}
-    enabled = data.get("enabled")
-    if enabled is None:
-        new_val = not warming_state.get("auto_enabled", False)
-    else:
-        new_val = bool(enabled)
-    warming_state["auto_enabled"] = new_val
-    # DB에 저장
-    try:
-        us = UserSettings.query.filter_by(user_id=current_user.id).first()
-        if not us:
-            us = UserSettings(user_id=current_user.id)
-            db.session.add(us)
-        us.update_settings({"WARMING_AUTO_ENABLED": "true" if new_val else "false"})
-        db.session.commit()
-    except Exception as _e:
-        add_log(f"[워밍업] auto_enabled DB 저장 실패: {_e}", "warning")
-    return jsonify({"auto_enabled": new_val})
-
-
-@app.route("/api/accounts/warming/status", methods=["GET"])
-@login_required
-def api_warming_status():
-    """모든 계정의 워밍업 상태를 반환합니다."""
-    accounts = YouTubeAccount.query.filter_by(user_id=current_user.id).all()
-    return jsonify({
-        "accounts": [
-            {
-                "email": acc.account_email,
-                "label": acc.label or acc.account_email.split("@")[0],
-                "is_warming": acc.is_warming,
-                "warming_day_num": acc.warming_day_num,
-                "warming_days": acc.warming_days or 14,
-                "warming_started_at": acc.warming_started_at.isoformat() if acc.warming_started_at else None,
-            }
-            for acc in accounts
-        ]
-    })
-
-
-@app.route("/api/accounts/warming/run", methods=["POST"])
-@login_required
-def api_warming_run():
-    """모든 계정(워밍업 중 + 활성 계정)의 워밍업 세션을 백그라운드로 실행합니다."""
-    data = request.get_json() or {}
-    target_email = data.get("email")       # 단일 계정
-    target_emails = data.get("emails")     # 복수 선택 계정 (체크박스)
-
-    query = YouTubeAccount.query.filter_by(user_id=current_user.id, channel_terminated=False)
-    if target_email:
-        query = query.filter_by(account_email=target_email)
-    target_accounts = query.all()
-
-    # emails 리스트로 필터링
-    if target_emails:
-        email_set = set(target_emails)
-        target_accounts = [acc for acc in target_accounts if acc.account_email in email_set]
-
-    if not target_accounts:
-        return jsonify({"message": "실행할 계정이 없습니다.", "count": 0})
-
-    t = threading.Thread(target=_run_warming_for_accounts, args=(target_accounts,), daemon=True)
-    t.start()
-
-    return jsonify({
-        "message": f"{len(target_accounts)}개 계정 워밍업 세션을 시작했습니다.",
-        "count": len(target_accounts),
-        "accounts": [acc.label or acc.account_email.split("@")[0] for acc in target_accounts],
-    })
-
-
-@app.route("/api/accounts/warming/approve", methods=["POST"])
-@login_required
-def api_warming_approve():
-    """사용자가 승인 → 대기 중인 워밍업 실행."""
-    if not warming_state.get("pending_approval"):
-        return jsonify({"message": "대기 중인 워밍업이 없습니다."})
-    pending_ids = warming_state.get("_pending_ids", [])
-    warming_state["pending_approval"] = False
-    warming_state["pending_count"] = 0
-    warming_state["_pending_ids"] = []
-    if not pending_ids:
-        return jsonify({"message": "대기 계정이 없습니다."})
-    with app.app_context():
-        accounts = YouTubeAccount.query.filter(
-            YouTubeAccount.id.in_(pending_ids),
-            YouTubeAccount.user_id == current_user.id,
-        ).all()
-    if not accounts:
-        return jsonify({"message": "실행할 계정이 없습니다."})
-    t = threading.Thread(target=_run_warming_for_accounts, args=(accounts,), daemon=True)
-    t.start()
-    return jsonify({"message": f"{len(accounts)}개 계정 워밍업을 시작합니다.", "count": len(accounts)})
-
-
-@app.route("/api/accounts/warming/defer", methods=["POST"])
-@login_required
-def api_warming_defer():
-    """사용자가 '다음에' 선택 → 승인 대기 해제 (다음 스케줄에서 재시도)."""
-    warming_state["pending_approval"] = False
-    warming_state["pending_count"] = 0
-    warming_state["_pending_ids"] = []
-    return jsonify({"message": "워밍업이 연기되었습니다. 다음 스케줄에서 다시 알립니다."})
-
-
-@app.route("/api/accounts/warming/run-continuous", methods=["POST"])
-@login_required
-def api_warming_run_continuous():
-    """전체 계정을 연속 루프로 워밍업 실행 (stop 요청 전까지 반복)."""
-    if warming_state.get("running"):
-        return jsonify({"error": "이미 워밍업이 실행 중입니다."}), 409
-    accounts = YouTubeAccount.query.filter_by(
-        user_id=current_user.id,
-        channel_terminated=False,
-        warming_paused=False,
-    ).all()
-    if not accounts:
-        return jsonify({"error": "실행할 계정이 없습니다."}), 400
-    t = threading.Thread(
-        target=_run_warming_for_accounts,
-        kwargs={"accounts": accounts, "continuous": True},
-        daemon=True,
-    )
-    t.start()
-    return jsonify({
-        "message": f"{len(accounts)}개 계정 연속 워밍업을 시작합니다.",
-        "count": len(accounts),
-        "continuous": True,
-    })
-
-
-@app.route("/api/accounts/warming/stop", methods=["POST"])
-@login_required
-def api_warming_stop():
-    """현재 실행 중인 워밍업을 강제 중지합니다."""
-    global _active_warming_bot
-    warming_state["stop_requested"] = True
-    # 현재 진행 중인 봇 브라우저 강제 종료
-    if _active_warming_bot:
-        try:
-            _active_warming_bot.close_browser()
-        except Exception:
-            pass
-        _active_warming_bot = None
-    add_log("[워밍업] 사용자 요청으로 강제 중지", "warning")
-    return jsonify({"message": "워밍업 중지 요청이 전달되었습니다."})
 
 
 @app.route("/api/accounts/<int:account_id>/keywords", methods=["GET", "POST"])
@@ -3976,85 +3397,6 @@ def api_keywords_suggest():
         return jsonify({"suggestions": suggestions[:10]})
     except Exception as e:
         return jsonify({"suggestions": [], "error": str(e)})
-
-
-@app.route("/api/accounts/warming/resume", methods=["POST"])
-@login_required
-def api_warming_resume():
-    """일시중지된 계정의 워밍업을 재개합니다 (warming_paused 리셋)."""
-    data = request.get_json() or {}
-    email = data.get("email")
-    if not email:
-        return jsonify({"error": "email 필드가 필요합니다."}), 400
-    acc = YouTubeAccount.query.filter_by(user_id=current_user.id, account_email=email).first()
-    if not acc:
-        return jsonify({"error": "계정을 찾을 수 없습니다."}), 404
-    acc.warming_paused = False
-    db.session.commit()
-    add_log(f"[워밍업] {acc.label or email} 일시중지 해제 — 다음 스케줄에서 재개됩니다", "info")
-    return jsonify({"message": "워밍업이 재개됩니다.", "email": email})
-
-
-@app.route("/api/accounts/<int:account_id>/warming/detail", methods=["GET"])
-@login_required
-def api_warming_detail(account_id):
-    """계정별 워밍업 상세 기록 조회 (롱폼/숏폼/시간 포함)."""
-    from src.models import WarmingLog
-    acc = YouTubeAccount.query.filter_by(id=account_id, user_id=current_user.id).first()
-    if not acc:
-        return jsonify({"error": "계정을 찾을 수 없습니다."}), 404
-
-    logs = WarmingLog.query.filter_by(account_id=account_id).order_by(WarmingLog.created_at.desc()).limit(30).all()
-
-    success_logs = [l for l in logs if l.status == "success"]
-    total_watched = sum(l.watched_total for l in success_logs)
-    total_longform = sum(l.watched_longform for l in success_logs)
-    total_shortform = sum(l.watched_shortform for l in success_logs)
-    total_duration = sum(l.total_duration_sec for l in success_logs)
-    total_liked = sum(l.liked for l in success_logs)
-    total_subscribed = sum(l.subscribed for l in success_logs)
-
-    return jsonify({
-        "account": acc.to_dict(),
-        "logs": [l.to_dict() for l in logs],
-        "stats": {
-            "total_watched": total_watched,
-            "total_longform": total_longform,
-            "total_shortform": total_shortform,
-            "total_duration_sec": total_duration,
-            "total_liked": total_liked,
-            "total_subscribed": total_subscribed,
-            "sessions_count": len(logs),
-            "success_sessions": len(success_logs),
-        },
-    })
-
-
-@app.route("/api/accounts/warming/set", methods=["POST"])
-@login_required
-def api_warming_set():
-    """계정의 워밍업 설정을 변경합니다 (기간 설정 또는 워밍업 초기화/해제)."""
-    data = request.get_json() or {}
-    email = data.get("email")
-    if not email:
-        return jsonify({"error": "email 필드가 필요합니다."}), 400
-
-    acc = YouTubeAccount.query.filter_by(user_id=current_user.id, account_email=email).first()
-    if not acc:
-        return jsonify({"error": "계정을 찾을 수 없습니다."}), 404
-
-    action = data.get("action", "start")  # "start" | "stop" | "reset"
-    warming_days = int(data.get("warming_days", acc.warming_days or 14))
-
-    import datetime as _dt_ws
-    if action == "stop":
-        acc.warming_started_at = None
-    elif action in ("start", "reset"):
-        acc.warming_started_at = _dt_ws.datetime.now()
-        acc.warming_days = warming_days
-    db.session.commit()
-
-    return jsonify({"message": "워밍업 설정이 변경되었습니다.", "account": acc.to_dict()})
 
 
 @app.route("/api/accounts/test-login", methods=["POST"])
@@ -4887,14 +4229,6 @@ def _run_automation_inner(limit=0, selected_ids=None):
                     prev_task_success = False
                     continue
 
-                # 워밍업 중인 계정 스킵
-                if account.get("is_warming"):
-                    day_num = account.get("warming_day_num", 1)
-                    add_log(f"[워밍업 중] {current_label} — D+{day_num}일째, 워밍업 완료 후 댓글 작업이 시작됩니다. 작업을 건너뜁니다.", "warning")
-                    automation_state["results"]["skip"] += 1
-                    prev_task_success = False
-                    continue
-
                 # 계정별 일일 댓글 한도 체크
                 _acc_db_limit = YouTubeAccount.query.filter_by(
                     user_id=auto_user_id, account_email=account["email"]
@@ -5513,7 +4847,7 @@ def api_tracking_check_all():
             from src.youtube_bot import YouTubeBot
             ready, msg = YouTubeBot.check_chromium_ready()
             if not ready:
-                return jsonify({"ok": False, "error": f"Chromium 브라우저가 없습니다. 워밍업 탭에서 먼저 Chromium을 설치해주세요.\n({msg})"})
+                return jsonify({"ok": False, "error": f"Chromium 브라우저가 없습니다. 설정에서 먼저 Chromium을 설치해주세요.\n({msg})"})
         except Exception:
             pass
 

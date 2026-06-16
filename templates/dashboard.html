@@ -850,105 +850,12 @@
             </div>
         </div>
 
-        <!-- 워밍업 설명 카드 -->
-        <div class="card" style="margin-bottom:16px;background:rgba(116,185,255,0.05);border:1px solid rgba(116,185,255,0.15)">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
-                <div>
-                    <div style="font-size:13px;font-weight:700;color:var(--blue);margin-bottom:6px">워밍업이란?</div>
-                    <div style="font-size:12px;color:var(--text-dim);line-height:1.8">
-                        신규 계정을 YouTube에 바로 댓글 작업에 투입하면 스팸으로 탐지될 수 있습니다.<br>
-                        워밍업은 실제 사람처럼 <b>영상 시청 → 좋아요 → 구독</b> 활동을 자동으로 진행해 계정 신뢰도를 쌓습니다.<br>
-                        <span style="color:var(--yellow)">• D+1~3일:</span> 영상 3~5개 시청만 &nbsp;
-                        <span style="color:var(--yellow)">• D+4~7일:</span> 시청 + 간헐적 좋아요 &nbsp;
-                        <span style="color:var(--yellow)">• D+8일~:</span> 시청 + 좋아요 + 구독<br>
-                        <b>워밍업 기간(14일) 중에는 댓글 작업이 자동으로 차단됩니다.</b>
-                    </div>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:8px;min-width:160px">
-                    <div style="font-size:12px;color:var(--text-dim)">자동 실행 (매일 오전 9시~오후 11시)</div>
-                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                        <input type="checkbox" id="warmingAutoToggle" onchange="toggleWarmingAuto(this.checked)" style="width:16px;height:16px">
-                        <span id="warmingAutoLabel" style="font-size:13px;font-weight:600">자동 실행 켜짐</span>
-                    </label>
-                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:4px" title="체크 해제 시 워밍업 브라우저 화면이 보입니다">
-                        <input type="checkbox" id="warmingHeadlessToggle" onchange="toggleWarmingHeadless(this.checked)" style="width:16px;height:16px">
-                        <span style="font-size:12px;color:var(--text-dim)">백그라운드 (화면숨김)</span>
-                    </label>
-                </div>
-            </div>
-        </div>
-
-        <!-- 자동실행 켜짐 안내 배너 -->
-        <div id="warmingAutoBanner" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(100,149,237,0.08);border:1px solid rgba(100,149,237,0.25);border-radius:8px;align-items:center;gap:10px">
-            <span style="font-size:16px">🤖</span>
-            <div style="flex:1;font-size:12px;color:var(--text-dim)">
-                <strong style="color:#6495ed">자동 실행이 켜져 있습니다.</strong>
-                워밍업 대상 계정이 생기면 알림이 표시됩니다. 사용자 승인 후 실행됩니다. (9시~23시 사이, 24시간 간격)
-            </div>
-            <button onclick="document.getElementById('warmingAutoBanner').style.display='none'" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px">✕</button>
-        </div>
-
-        <!-- IP 분리 경고 배너 (ADB 미연결 시) -->
-        <div id="adbWarningBanner" style="display:none;margin-bottom:12px;padding:14px 16px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.4);border-radius:10px">
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-                <span style="font-size:20px">⚠️</span>
-                <div style="flex:1">
-                    <div style="font-size:13px;font-weight:700;color:#ff5050;margin-bottom:2px">IP 분리 미확인 — 워밍업 위험</div>
-                    <div style="font-size:12px;color:var(--text-dim)">휴대폰을 USB로 연결하고 ADB 설정을 활성화해야 계정별 IP가 분리됩니다. 동일 IP로 여러 계정을 워밍업하면 계정 연결이 감지될 수 있습니다.</div>
-                </div>
-                <div style="display:flex;gap:8px">
-                    <button class="btn btn-sm" style="background:rgba(255,80,80,0.15);color:#ff5050;border:1px solid rgba(255,80,80,0.4)" onclick="runWarmingAllForce()">무시하고 진행</button>
-                    <button class="btn btn-sm btn-secondary" onclick="switchTab('settings')">ADB 설정 →</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 워밍업 승인 요청 배너 (스케줄러가 실행 준비됐을 때) -->
-        <div id="warmingApprovalBanner" style="display:none;margin-bottom:12px;padding:14px 16px;background:rgba(243,156,18,0.08);border:1px solid rgba(243,156,18,0.35);border-radius:10px">
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-                <span style="font-size:20px">⏰</span>
-                <div style="flex:1">
-                    <div style="font-size:13px;font-weight:700;color:#f39c12;margin-bottom:2px">워밍업 실행 준비됨</div>
-                    <div id="warmingApprovalMsg" style="font-size:12px;color:var(--text-dim)">N개 계정의 워밍업 세션이 준비되었습니다.</div>
-                </div>
-                <div style="display:flex;gap:8px">
-                    <button class="btn btn-sm" style="background:#f39c12;color:#fff;border:none" onclick="approveWarming()">지금 실행</button>
-                    <button class="btn btn-sm btn-secondary" onclick="deferWarming()">다음에</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 워밍업 실시간 진행 패널 (실행 중에만 표시) -->
-        <div id="warmingProgressPanel" style="display:none;margin-bottom:16px;padding:14px 16px;background:rgba(46,213,115,0.06);border:1px solid rgba(46,213,115,0.2);border-radius:10px">
-            <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:10px">워밍업 진행 중...</div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px">
-                <div><span style="font-size:11px;color:var(--text-dim)">현재 계정</span><br><b id="wpCurrentLabel" style="font-size:14px">-</b></div>
-                <div><span style="font-size:11px;color:var(--text-dim)">영상 진행</span><br><b id="wpVideoProgress" style="font-size:14px">-</b></div>
-                <div><span style="font-size:11px;color:var(--text-dim)">현재 주제</span><br><b id="wpCurrentTopic" style="font-size:14px;color:var(--blue)">-</b></div>
-                <div><span style="font-size:11px;color:var(--text-dim)">전체 진행</span><br><b id="wpOverall" style="font-size:14px">-</b></div>
-            </div>
-            <div id="wpSuccessList" style="margin-bottom:8px;display:none">
-                <div style="font-size:12px;color:var(--green);margin-bottom:6px;font-weight:600">✓ 완료된 계정</div>
-                <div id="wpSuccessItems" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-            </div>
-            <div id="wpIssueList" style="display:none;padding:10px;background:rgba(255,80,80,0.07);border:1px solid rgba(255,80,80,0.2);border-radius:8px">
-                <div style="font-size:12px;color:#ff5050;margin-bottom:6px;font-weight:600">⚠ 계정 확인 필요</div>
-                <div id="wpIssueItems" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-                <div style="font-size:10px;color:var(--text-dim);margin-top:6px">로그인 실패 또는 계정 정지가 감지된 계정입니다. 수동로그인으로 상태를 확인하세요.</div>
-            </div>
-        </div>
-
         <!-- 계정 목록 -->
         <div class="table-wrap">
             <div class="table-title">
                 <span>등록된 계정</span>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                     <button class="btn btn-sm btn-primary" id="batchLoginBtn" onclick="batchManualLogin()" style="display:none">선택 로그인</button>
-                    <button class="btn btn-sm btn-primary" id="warmingSelectedBtn" onclick="runWarmingSelected()" style="display:none">선택 워밍업</button>
-                    <button class="btn btn-sm btn-secondary" id="warmingRunBtn" onclick="runWarmingAll()">전체 워밍업 실행</button>
-                    <button class="btn btn-sm" style="background:rgba(46,213,115,0.15);color:#2ed573;border:1px solid rgba(46,213,115,0.4);font-weight:700" id="warmingContinuousBtn" onclick="runWarmingContinuous()" title="중지 버튼 누를 때까지 계속 반복 실행">🔁 연속 실행</button>
-                    <button class="btn btn-sm" style="background:rgba(100,149,237,0.15);color:#6495ed;border:1px solid rgba(100,149,237,0.3);font-weight:700" onclick="showWarmingGuide()" title="워밍업 가이드">? 가이드</button>
-                    <button class="btn btn-sm btn-danger" id="warmingStopBtn" onclick="stopWarmingAll()" style="display:none">⏹ 워밍업 중지</button>
                     <button class="btn btn-sm btn-secondary" onclick="loadAccountList()">새로고침</button>
                 </div>
             </div>
@@ -2734,7 +2641,7 @@
         document.getElementById('tab-' + tabName).classList.add('active');
 
         // tasks 탭: 이미 초기화 시 로드됨, 탭 전환만으로 재조회 안 함
-        if (tabName === 'accounts') { loadAccountTypes().then(() => { loadAccountList(); loadWarmingAutoState(); startWarmingPoll(); }); }
+        if (tabName === 'accounts') { loadAccountTypes().then(() => { loadAccountList(); }); }
         if (tabName === 'settings') loadSettings();
         if (tabName === 'smm' && IS_OWNER) loadSMMInfo();
         if (tabName === 'revenue') loadRevenueDashboard();
@@ -3418,25 +3325,9 @@
             let statusBadge = '';
             if (acc.channel_terminated) {
                 statusBadge = `<span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,80,80,0.15);color:#ff5050">채널삭제</span>`;
-            } else if (acc.warming_paused) {
-                statusBadge = `<span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,80,80,0.15);color:#ff5050" title="로그인 실패로 워밍업 일시중지">⚠ 확인필요</span>`;
-            } else if (acc.is_warming) {
-                const remaining = acc.warming_remaining || (acc.warming_days - acc.warming_day_num);
-                statusBadge = `<span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(255,190,50,0.15);color:#f39c12" title="워밍업 중 (댓글 작업 금지)">워밍업 D+${acc.warming_day_num} (${remaining}일 남음)</span>`;
-            } else if (acc.warming_started_at || acc.warming_days) {
-                statusBadge = `<span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(46,213,115,0.15);color:#2ed573">활성</span>`;
             } else {
                 statusBadge = `<span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(46,213,115,0.15);color:#2ed573">활성</span>`;
             }
-            // 워밍업 진행률 — 성공 세션 기준 (상세 팝업과 동기화)
-            const _successSessions = acc.success_sessions || 0;
-            const _warmingDays = acc.warming_days > 0 ? acc.warming_days : 14;
-            const pct = _successSessions > 0
-                ? Math.min(100, Math.round((_successSessions / _warmingDays) * 100))
-                : 0;
-            const barColor = pct === 0 ? '#ced4da'
-                : acc.is_warming ? '#f39c12' : '#2ed573';
-            const pctLabel = pct > 0 ? `${pct}%` : '미시작';
 
             // 관심사 키워드 배지 (옵션 A: 첫 키워드 + 개수, 호버 시 전체 툴팁)
             const _kws = Array.isArray(acc.interest_keywords) ? acc.interest_keywords : [];
@@ -3455,13 +3346,6 @@
                 <td><input type="checkbox" class="acc-select" data-email="${acc.email}" onchange="onAccountSelect()"></td>
                 <td>
                     <strong>${acc.label}</strong>
-                    <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
-                        <span style="font-size:10px;font-weight:600;color:#6c757d;white-space:nowrap">워밍업</span>
-                        <div style="flex:1;background:#e9ecef;border-radius:4px;height:6px;overflow:hidden;min-width:60px;max-width:120px">
-                            <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px;transition:width 0.4s"></div>
-                        </div>
-                        <span style="font-size:10px;font-weight:700;color:${barColor};white-space:nowrap">${pctLabel}</span>
-                    </div>
                     <div style="margin-top:5px">${kwBadge}</div>
                 </td>
                 <td class="selectable">${acc.email}</td>
@@ -3473,10 +3357,6 @@
                     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                         <button class="btn btn-sm btn-primary" onclick="manualLogin('${acc.email}')">수동 로그인</button>
                         <span style="font-size:10px;color:var(--text-dim);max-width:180px;line-height:1.3;">1회 수동 로그인 필수! 이후 자동 로그인됩니다.</span>
-                        ${acc.warming_paused ? `<button class="btn btn-sm" style="background:rgba(255,80,80,0.15);color:#ff5050;border:1px solid rgba(255,80,80,0.3)" onclick="resumeWarming('${acc.email}')" title="수동로그인으로 계정 확인 후 재개하세요">⚠ 워밍업 재개</button>` : ''}
-                        ${acc.is_warming && !acc.warming_paused ? `<button class="btn btn-sm btn-secondary" onclick="runWarmingOne('${acc.email}')" title="이 계정만 워밍업 세션 실행">워밍업</button>` : ''}
-                        <button class="btn btn-sm" style="background:rgba(100,149,237,0.2);color:#6495ed;border:1px solid rgba(100,149,237,0.3)" onclick="showWarmingDetail(${acc.id}, '${acc.label}')" title="워밍업 상세 기록">📊 상세</button>
-                        ${acc.is_warming && !acc.warming_paused ? `<button class="btn btn-sm btn-secondary" onclick="stopWarming('${acc.email}')" title="워밍업 즉시 해제 (바로 댓글 작업 가능)">워밍 해제</button>` : ''}
                         <button class="btn btn-sm btn-danger" onclick="deleteAccount('${acc.email}')">삭제</button>
                     </div>
                     <div style="margin-top:4px">
@@ -3600,178 +3480,6 @@
         }
     }
 
-    // ─── 워밍업 자동 토글 ───
-    async function toggleWarmingAuto(enabled) {
-        const res = await api('/api/accounts/warming/auto', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ enabled }),
-        });
-        const lbl = document.getElementById('warmingAutoLabel');
-        if (lbl) lbl.textContent = enabled ? '자동 실행 켜짐' : '자동 실행 꺼짐';
-    }
-
-    // ─── 자동 토글 초기 상태 로드 ───
-    async function loadWarmingAutoState() {
-        const res = await api('/api/accounts/warming/state');
-        if (!res) return;
-        const chk = document.getElementById('warmingAutoToggle');
-        const lbl = document.getElementById('warmingAutoLabel');
-        if (chk) chk.checked = res.auto_enabled !== false;
-        if (lbl) lbl.textContent = res.auto_enabled !== false ? '자동 실행 켜짐' : '자동 실행 꺼짐';
-
-        // 자동실행이 켜져 있으면 안내 배너 표시
-        if (res.auto_enabled !== false) {
-            const banner = document.getElementById('warmingAutoBanner');
-            if (banner) banner.style.display = 'flex';
-        }
-
-        // headless 초기 상태 로드
-        await loadWarmingHeadlessState();
-    }
-
-    // ─── 워밍업 headless 토글 ───
-    async function toggleWarmingHeadless(headless) {
-        await api('/api/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ WARMING_HEADLESS: headless ? 'true' : 'false' }),
-        });
-    }
-
-    async function loadWarmingHeadlessState() {
-        try {
-            const res = await api('/api/settings');
-            if (!res) return;
-            const chk = document.getElementById('warmingHeadlessToggle');
-            // 기본값: 백그라운드(headless) = true
-            const isHeadless = res.WARMING_HEADLESS !== 'false';
-            if (chk) chk.checked = isHeadless;
-        } catch (e) {}
-    }
-
-    // ─── 워밍업 일시중지 계정 재개 ───
-    async function resumeWarming(email) {
-        if (!confirm(`수동로그인으로 계정 상태를 먼저 확인했나요?\n\n확인 후 워밍업을 재개하면 다음 스케줄에서 자동으로 진행됩니다.`)) return;
-        const res = await api('/api/accounts/warming/resume', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email }),
-        });
-        if (res && !res.error) {
-            alert('워밍업이 재개됩니다. 다음 자동 스케줄(오전 9시~오후 11시)에 진행됩니다.');
-            await loadAccountList();
-        } else {
-            alert(res?.error || '재개 실패');
-        }
-    }
-
-    // ─── 워밍업 승인 / 연기 ───
-    async function approveWarming() {
-        const res = await api('/api/accounts/warming/approve', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        });
-        if (res && !res.error) {
-            document.getElementById('warmingApprovalBanner').style.display = 'none';
-        } else {
-            alert(res?.error || '실행 실패');
-        }
-    }
-
-    async function deferWarming() {
-        await api('/api/accounts/warming/defer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        });
-        document.getElementById('warmingApprovalBanner').style.display = 'none';
-    }
-
-    // ─── 워밍업 실시간 상태 폴링 ───
-    let _warmingPollTimer = null;
-    function startWarmingPoll() {
-        if (_warmingPollTimer) return;
-        _warmingPollTimer = setInterval(async () => {
-            const res = await api('/api/accounts/warming/state');
-            if (!res) return;
-            const panel = document.getElementById('warmingProgressPanel');
-            const banner = document.getElementById('warmingApprovalBanner');
-            // 승인 대기 배너
-            if (banner) {
-                if (res.pending_approval && !res.running) {
-                    const cnt = res.pending_count || 0;
-                    const msg = document.getElementById('warmingApprovalMsg');
-                    if (msg) msg.textContent = `${cnt}개 계정의 워밍업 세션이 준비되었습니다.`;
-                    banner.style.display = 'block';
-                } else {
-                    banner.style.display = 'none';
-                }
-            }
-            // 중지 버튼 표시/숨김
-            const stopBtn = document.getElementById('warmingStopBtn');
-            const runBtn = document.getElementById('warmingRunBtn');
-            const contBtn = document.getElementById('warmingContinuousBtn');
-            if (stopBtn) stopBtn.style.display = res.running ? 'inline-block' : 'none';
-            if (runBtn) runBtn.style.display = res.running ? 'none' : 'inline-block';
-            if (contBtn) {
-                if (res.continuous && res.running) {
-                    contBtn.textContent = `🔁 연속 실행 중 (라운드 ${res.round_num || 1})`;
-                    contBtn.style.display = 'inline-block';
-                } else {
-                    // 멈췄거나 일반 실행 → 기본 텍스트 복원
-                    contBtn.textContent = '🔁 연속 실행';
-                    contBtn.style.display = res.running ? 'none' : 'inline-block';
-                }
-            }
-
-            if (res.running) {
-                if (panel) panel.style.display = 'block';
-                const cur = res.current_label || '-';
-                const vid = res.current_video > 0 ? `${res.current_video}/${res.total_videos}` : '대기 중';
-                const topic = res.current_topic || '-';
-                const overall = `${res.accounts_done}/${res.accounts_total}`;
-                document.getElementById('wpCurrentLabel').textContent = cur;
-                document.getElementById('wpVideoProgress').textContent = vid;
-                document.getElementById('wpCurrentTopic').textContent = topic;
-                document.getElementById('wpOverall').textContent = overall;
-                // 완료 / 이슈 계정 분리
-                if (res.session_results) {
-                    const ok = res.session_results.filter(r => r.status === 'success');
-                    const issues = res.session_results.filter(r => r.status !== 'success');
-
-                    const successBlock = document.getElementById('wpSuccessList');
-                    const successItems = document.getElementById('wpSuccessItems');
-                    if (ok.length > 0) {
-                        successBlock.style.display = 'block';
-                        successItems.innerHTML = ok.map(r =>
-                            `<span style="padding:3px 8px;border-radius:6px;font-size:11px;background:rgba(46,213,115,0.1);border:1px solid var(--green);color:var(--green)">✓ ${r.label} 시청${r.watched} 좋아요${r.liked}</span>`
-                        ).join('');
-                    } else {
-                        successBlock.style.display = 'none';
-                    }
-
-                    const issueBlock = document.getElementById('wpIssueList');
-                    const issueItems = document.getElementById('wpIssueItems');
-                    if (issues.length > 0) {
-                        issueBlock.style.display = 'block';
-                        issueItems.innerHTML = issues.map(r => {
-                            const label = r.status === 'login_failed' ? '로그인 실패' : r.status === 'suspended' ? '계정 정지' : '오류';
-                            return `<span style="padding:3px 8px;border-radius:6px;font-size:11px;background:rgba(255,80,80,0.1);border:1px solid #ff5050;color:#ff5050">⚠ ${r.label} (${label})</span>`;
-                        }).join('');
-                    } else {
-                        issueBlock.style.display = 'none';
-                    }
-                }
-            } else {
-                if (panel) panel.style.display = 'none';
-                // 실행이 막 끝났으면 계정 목록 갱신
-                if (res.session_results && res.session_results.length > 0 && !res.running) {
-                    await loadAccountList();
-                }
-            }
-        }, 3000);
-    }
-
     // ─── 계정 체크박스 전체 선택 ───
     function toggleAccountSelectAll(chk) {
         document.querySelectorAll('.acc-select').forEach(c => c.checked = chk.checked);
@@ -3782,125 +3490,8 @@
     function onAccountSelect() {
         const checked = document.querySelectorAll('.acc-select:checked').length;
         const show = checked > 0 ? 'inline-block' : 'none';
-        const warmBtn = document.getElementById('warmingSelectedBtn');
         const loginBtn = document.getElementById('batchLoginBtn');
-        if (warmBtn) warmBtn.style.display = show;
         if (loginBtn) loginBtn.style.display = show;
-    }
-
-    // ─── 선택 계정만 워밍업 ───
-    async function runWarmingSelected() {
-        const emails = Array.from(document.querySelectorAll('.acc-select:checked')).map(c => c.dataset.email);
-        if (emails.length === 0) return;
-        const btn = document.getElementById('warmingSelectedBtn');
-        btn.disabled = true;
-        btn.textContent = '실행 중...';
-        try {
-            const res = await api('/api/accounts/warming/run', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ emails }),
-            });
-            if (res) alert(`${emails.length}개 계정 워밍업 세션 시작\n로그 탭에서 진행 상황을 확인하세요.`);
-        } finally {
-            btn.disabled = false;
-            btn.textContent = '선택 워밍업';
-        }
-    }
-
-    // ─── 워밍업 전체 실행 ───
-    async function runWarmingAll() {
-        // ADB 디바이스 체크 (IP 분리 확인)
-        const adbStatus = await api('/api/adb/device-status');
-        const adbBanner = document.getElementById('adbWarningBanner');
-        if (!adbStatus || !adbStatus.ok) {
-            if (adbBanner) adbBanner.style.display = 'block';
-            // 경고를 보여주지만 강제 차단은 하지 않음 (무시하고 진행 버튼 있음)
-            return;  // 배너 확인 후 직접 버튼 클릭해야 진행
-        }
-        if (adbBanner) adbBanner.style.display = 'none';
-
-        const btn = document.getElementById('warmingRunBtn');
-        btn.disabled = true;
-        btn.textContent = '실행 중...';
-        try {
-            const res = await api('/api/accounts/warming/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-            if (res && res.count > 0) {
-                alert(`워밍업 세션 시작: ${res.accounts.join(', ')}\n로그 탭에서 진행 상황을 확인하세요.`);
-            } else {
-                alert(res?.message || '워밍업 중인 계정이 없습니다.');
-            }
-        } finally {
-            btn.disabled = false;
-            btn.textContent = '전체 워밍업 실행';
-        }
-    }
-
-    // ─── ADB 없이 워밍업 강제 실행 (경고 무시) ───
-    async function runWarmingAllForce() {
-        document.getElementById('adbWarningBanner').style.display = 'none';
-        const btn = document.getElementById('warmingRunBtn');
-        btn.disabled = true;
-        btn.textContent = '실행 중...';
-        try {
-            const res = await api('/api/accounts/warming/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-            if (res && res.count > 0) {
-                alert(`워밍업 세션 시작: ${res.accounts.join(', ')}\n로그 탭에서 진행 상황을 확인하세요.`);
-            } else {
-                alert(res?.message || '워밍업 중인 계정이 없습니다.');
-            }
-        } finally {
-            btn.disabled = false;
-            btn.textContent = '전체 워밍업 실행';
-        }
-    }
-
-    // ─── 워밍업 가이드 ───
-    function showWarmingGuide() {
-        document.getElementById('warmingGuideModal').style.display = 'block';
-    }
-
-    // ─── 워밍업 연속 실행 ───
-    async function runWarmingContinuous() {
-        const adbRes = await api('/api/adb/device-status');
-        if (adbRes && !adbRes.connected) {
-            const adbBanner = document.getElementById('adbWarningBanner');
-            if (adbBanner) adbBanner.style.display = 'block';
-        }
-        if (!confirm('🔁 연속 실행 모드\n\n전체 계정을 순환한 뒤 10~20분 대기 후 다시 처음부터 반복합니다.\n⏹ 중지 버튼을 누를 때까지 계속 실행됩니다.\n\n시작하시겠습니까?')) return;
-        const res = await api('/api/accounts/warming/run-continuous', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-        if (res && res.error) { alert(res.error); return; }
-        if (res) alert(res.message || '연속 워밍업이 시작되었습니다.');
-    }
-
-    // ─── 워밍업 강제 중지 ───
-    async function stopWarmingAll() {
-        if (!confirm('현재 진행 중인 워밍업을 강제 중지하시겠습니까?\n\n현재 계정의 브라우저가 즉시 닫히고 다음 계정으로 넘어가지 않습니다.')) return;
-        const btn = document.getElementById('warmingStopBtn');
-        btn.disabled = true;
-        btn.textContent = '중지 중...';
-        const res = await api('/api/accounts/warming/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-        btn.disabled = false;
-        btn.textContent = '⏹ 워밍업 중지';
-        if (res) alert(res.message || '중지 요청이 전달되었습니다.');
-    }
-
-    // ─── 계정 단일 워밍업 실행 ───
-    async function runWarmingOne(email) {
-        if (!confirm(`${email} 계정의 워밍업 세션을 지금 실행하시겠습니까?`)) return;
-        const res = await api('/api/accounts/warming/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
-        if (res) alert(res.message || '세션이 시작되었습니다. 로그 탭에서 확인하세요.');
-    }
-
-    // ─── 워밍업 해제 ───
-    async function stopWarming(email) {
-        if (!confirm(`${email} 계정의 워밍업을 지금 해제하시겠습니까?\n해제 후 바로 댓글 작업에 투입됩니다.`)) return;
-        const res = await api('/api/accounts/warming/set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, action: 'stop' }) });
-        if (res && !res.error) {
-            await loadAccountList();
-        } else {
-            alert(res?.error || '오류가 발생했습니다.');
-        }
     }
 
     // ─── 계정 삭제 ───
@@ -8170,103 +7761,6 @@ fetch('/api/update/check',{method:'POST',headers:{'Content-Type':'application/js
     문의하기
 </a>
 
-<!-- ── 워밍업 가이드 모달 ── -->
-<div id="warmingGuideModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;overflow-y:auto">
-  <div style="background:#ffffff;border-radius:18px;max-width:720px;margin:40px auto;padding:0;border:1px solid #ffe4c4;box-shadow:0 12px 40px rgba(255,140,60,0.18);overflow:hidden">
-    <!-- 헤더 (주황 그라디언트) -->
-    <div style="background:linear-gradient(135deg,#ff8c42 0%,#ff6b35 100%);padding:22px 28px;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:18px;font-weight:800;color:#ffffff;margin-bottom:2px">📖 계정 관리 & 워밍업 가이드</div>
-        <div style="font-size:12px;color:rgba(255,255,255,0.9)">CommentBoost를 안전하게 사용하는 방법</div>
-      </div>
-      <button onclick="document.getElementById('warmingGuideModal').style.display='none'" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:18px;cursor:pointer;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center">✕</button>
-    </div>
-
-    <div style="padding:26px 28px;background:#ffffff">
-
-      <!-- 1. IP 분리 -->
-      <div style="margin-bottom:18px;padding:16px 18px;background:#fff8f0;border-radius:12px;border-left:4px solid #ff8c42">
-        <div style="font-size:14px;font-weight:800;color:#e67e22;margin-bottom:10px">🔑 1. IP 분리 — 가장 중요</div>
-        <div style="font-size:12px;color:#555;line-height:1.9">
-          • 계정마다 <strong style="color:#ff6b35">다른 LTE IP</strong>를 사용해야 합니다<br>
-          • 같은 IP로 여러 계정을 작업하면 구글이 계정 연결을 감지합니다<br>
-          • 방법: 휴대폰 USB 연결 → ADB 활성화 → 계정마다 비행기모드 ON→OFF로 IP 변경<br>
-          • <strong style="color:#ff6b35">수동 로그인도 반드시 해당 계정 전용 IP에서 진행</strong><br>
-          • 워밍업만 진행하는 경우에는 ADB 없이도 비교적 안전합니다 (시청만 하므로)
-        </div>
-      </div>
-
-      <!-- 2. 수동 로그인 -->
-      <div style="margin-bottom:18px;padding:16px 18px;background:#fff8f0;border-radius:12px;border-left:4px solid #ffa94d">
-        <div style="font-size:14px;font-weight:800;color:#e67e22;margin-bottom:10px">🔐 2. 수동 로그인</div>
-        <div style="font-size:12px;color:#555;line-height:1.9">
-          • 계정 추가 후 반드시 <strong style="color:#ff6b35">수동 로그인 1회</strong> 필수 (이후 자동 로그인 가능)<br>
-          • 수동 로그인 시작 → 기존 쿠키 자동 삭제 → 새 세션 시작<br>
-          • 유튜브 우측 상단 <strong style="color:#ff6b35">계정 아이콘 확인</strong> → [로그인 완료 확인] 클릭<br>
-          • Sign-in 버튼이 보이면 → 채널 정지 계정으로 자동 감지 + 비활성화<br>
-          • 쿠키 저장 날짜가 오래됐다면 다시 수동 로그인
-        </div>
-      </div>
-
-      <!-- 3. 관심사 키워드 (NEW!) -->
-      <div style="margin-bottom:18px;padding:16px 18px;background:#fff5eb;border-radius:12px;border-left:4px solid #ff6b35;position:relative">
-        <span style="position:absolute;top:12px;right:14px;background:#ff6b35;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">NEW</span>
-        <div style="font-size:14px;font-weight:800;color:#e67e22;margin-bottom:10px">🎯 3. 관심사 키워드 (v2.5.25 신규)</div>
-        <div style="font-size:12px;color:#555;line-height:1.9">
-          • 계정 리스트에서 <strong style="color:#ff6b35">🎯 배지를 클릭</strong>하면 관심사 키워드를 설정할 수 있습니다<br>
-          • 워밍업이 해당 키워드로 <strong style="color:#ff6b35">실제 YouTube를 검색</strong>해서 영상을 시청합니다<br>
-          • 키워드 하나만 입력해도 <strong style="color:#ff6b35">연관 키워드가 자동 추천</strong>됩니다 (YouTube 실시간 검색어)<br>
-          • 최대 15개까지 추가 가능, 5~10개가 적당<br>
-          • <strong style="color:#ff6b35">왜 중요한가?</strong> 유튜브 알고리즘이 "이 계정 = OO에 관심 있는 사용자"로 빠르게 학습<br>
-          • 댓글 작업 시 해당 카테고리와 같은 영상에 댓글을 달면 정지 리스크가 크게 감소<br>
-          • 예시: 육아용품 홍보 → "이유식", "신생아 케어", "수면교육", "육아템", "임산부 요가"
-        </div>
-      </div>
-
-      <!-- 4. 워밍업 -->
-      <div style="margin-bottom:18px;padding:16px 18px;background:#fff8f0;border-radius:12px;border-left:4px solid #ffa94d">
-        <div style="font-size:14px;font-weight:800;color:#e67e22;margin-bottom:10px">🔥 4. 워밍업 진행 방법</div>
-        <div style="font-size:12px;color:#555;line-height:1.9">
-          • 수동 로그인 완료 후 → [워밍업 시작] 클릭 (기본 14일)<br>
-          • 워밍업 기간 중에는 댓글 작업이 <strong style="color:#ff6b35">자동 차단</strong><br>
-          • 하루 1회 세션: 영상 3~5개 시청 → Day4+ 좋아요 → Day8+ 구독<br>
-          • <strong style="color:#ff6b35">[🔁 연속 실행]</strong>: 활성 계정 전체를 자동 반복 실행 (야간 미니PC 추천)<br>
-          • <strong style="color:#ff6b35">[📊 상세]</strong>: 세션별 시청 영상을 펼쳐볼 수 있습니다 (어떤 키워드 → 어떤 영상)<br>
-          • 진행 중 문제가 생기면 <strong style="color:#ff6b35">[⏹ 워밍업 중지]</strong>로 즉시 중단 가능<br>
-          • 인라인 진행바(🟢)로 각 계정 워밍업 진행률을 한눈에 확인
-        </div>
-      </div>
-
-      <!-- 5. 댓글 작업 안전 규칙 -->
-      <div style="margin-bottom:18px;padding:16px 18px;background:#fff8f0;border-radius:12px;border-left:4px solid #ff8c42">
-        <div style="font-size:14px;font-weight:800;color:#e67e22;margin-bottom:10px">💬 5. 댓글 작업 안전 규칙</div>
-        <div style="font-size:12px;color:#555;line-height:1.9">
-          • 계정별 하루 최대 <strong style="color:#ff6b35">10개 댓글</strong> (기본값, 설정 변경 가능)<br>
-          • 한도 초과 계정은 Full Auto에서 자동으로 건너뜁니다<br>
-          • 워밍업 완료 후 초반 며칠은 1~2개로 시작 → 점진적 증가<br>
-          • <strong style="color:#ff6b35">관심사 키워드와 일치하는 카테고리</strong>에 댓글 달기 권장<br>
-          • 채널 정지 감지 계정은 모든 작업에서 자동 제외
-        </div>
-      </div>
-
-      <!-- 6. 계정 상태 확인 -->
-      <div style="padding:16px 18px;background:#fff5eb;border-radius:12px;border-left:4px solid #ff6b35">
-        <div style="font-size:14px;font-weight:800;color:#e67e22;margin-bottom:10px">🚨 6. 계정 상태 확인</div>
-        <div style="font-size:12px;color:#555;line-height:1.9">
-          • <span style="background:#ffe4d6;padding:2px 8px;border-radius:6px;color:#e74c3c;font-weight:700">채널삭제</span> — YouTube 정지 계정. 모든 작업 제외<br>
-          • <span style="background:#ffecd1;padding:2px 8px;border-radius:6px;color:#e67e22;font-weight:700">⚠ 확인필요</span> — 로그인 실패. 수동 로그인 후 [워밍업 재개] 클릭<br>
-          • <span style="background:#d4f5d4;padding:2px 8px;border-radius:6px;color:#27ae60;font-weight:700">활성</span> — 정상 작동 중<br>
-          • <span style="background:#fff0cc;padding:2px 8px;border-radius:6px;color:#f39c12;font-weight:700">워밍업 D+N</span> — 워밍업 진행 중 (댓글 작업 금지)
-        </div>
-      </div>
-
-      <div style="text-align:center;margin-top:22px">
-        <button onclick="document.getElementById('warmingGuideModal').style.display='none'" style="background:linear-gradient(135deg,#ff8c42 0%,#ff6b35 100%);color:#fff;border:none;padding:10px 32px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(255,107,53,0.3)">확인했습니다</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- ── 관심사 키워드 모달 ── -->
 <div id="keywordModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;overflow-y:auto">
   <div style="background:#ffffff;border-radius:16px;max-width:560px;margin:60px auto;padding:26px;border:1px solid #e0e0e0;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
@@ -8276,7 +7770,7 @@ fetch('/api/update/check',{method:'POST',headers:{'Content-Type':'application/js
     </div>
 
     <div style="font-size:12px;color:#666;margin-bottom:8px;line-height:1.6">
-      워밍업 시 이 키워드로 YouTube를 검색해서 영상을 시청합니다.<br>
+      이 계정이 작업할 카테고리를 나타내는 관심사 키워드입니다.<br>
       제품/타겟과 관련된 키워드를 입력하세요 (최대 15개).
     </div>
 
@@ -8301,159 +7795,7 @@ fetch('/api/update/check',{method:'POST',headers:{'Content-Type':'application/js
   </div>
 </div>
 
-<!-- ── 워밍업 상세 모달 ── -->
-<div id="warmingDetailModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;overflow-y:auto">
-  <div style="background:#ffffff;border-radius:16px;max-width:700px;margin:40px auto;padding:28px;border:1px solid #e0e0e0;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <h3 id="warmingDetailTitle" style="margin:0;font-size:16px;color:#222">워밍업 상세 기록</h3>
-      <button onclick="document.getElementById('warmingDetailModal').style.display='none'" style="background:none;border:none;color:#999;font-size:20px;cursor:pointer">✕</button>
-    </div>
-
-    <!-- 누적 통계 카드 -->
-    <div id="warmingDetailStats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px"></div>
-
-    <!-- 진행률 막대 (누적) -->
-    <div id="warmingDetailBar" style="margin-bottom:20px"></div>
-
-    <!-- 세션 로그 테이블 -->
-    <div style="font-size:13px;font-weight:600;color:#666;margin-bottom:8px">세션별 기록 (최근 30회)</div>
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead>
-          <tr style="color:#888;border-bottom:1px solid #e0e0e0">
-            <th style="text-align:left;padding:6px 8px">날짜</th>
-            <th style="text-align:center;padding:6px 8px">Day</th>
-            <th style="text-align:center;padding:6px 8px">롱폼</th>
-            <th style="text-align:center;padding:6px 8px">숏폼</th>
-            <th style="text-align:center;padding:6px 8px">시청시간</th>
-            <th style="text-align:center;padding:6px 8px">좋아요</th>
-            <th style="text-align:center;padding:6px 8px">구독</th>
-            <th style="text-align:center;padding:6px 8px">상태</th>
-          </tr>
-        </thead>
-        <tbody id="warmingDetailLogs"></tbody>
-      </table>
-    </div>
-
-    <div style="text-align:center;margin-top:16px">
-      <button class="btn btn-sm btn-secondary" onclick="document.getElementById('warmingDetailModal').style.display='none'">닫기</button>
-    </div>
-  </div>
-</div>
-
 <script>
-async function showWarmingDetail(accountId, label) {
-    document.getElementById('warmingDetailModal').style.display = 'block';
-    document.getElementById('warmingDetailTitle').textContent = `📊 ${label} 워밍업 상세`;
-    document.getElementById('warmingDetailStats').innerHTML = '<div style="color:var(--text-dim);font-size:13px">불러오는 중...</div>';
-    document.getElementById('warmingDetailLogs').innerHTML = '';
-
-    try {
-        const res = await api(`/api/accounts/${accountId}/warming/detail`);
-        if (!res || res.error) {
-            document.getElementById('warmingDetailStats').innerHTML = `<div style="color:var(--red)">${res?.error || '불러오기 실패'}</div>`;
-            return;
-        }
-
-        const s = res.stats;
-        const acc = res.account;
-
-        // 진행률 — 성공 세션 기준 (오류 제외)
-        const totalDays = acc.warming_days > 0 ? acc.warming_days : 14;
-        const doneSessions = s.success_sessions || 0;
-        const totalSessions = s.sessions_count || 0;
-        const errorSessions = totalSessions - doneSessions;
-        const pct = Math.min(100, Math.round((doneSessions / totalDays) * 100));
-        const barColor = acc.is_warming ? '#f39c12' : '#2ed573';
-        const errorNote = errorSessions > 0 ? ` <span style="color:#ff5050;font-size:11px">(오류 ${errorSessions}회 제외)</span>` : '';
-        document.getElementById('warmingDetailBar').innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                <span style="font-size:12px;color:#666">워밍업 진행률 (성공 세션 기준)${errorNote}</span>
-                <span style="font-size:12px;color:${barColor};font-weight:700">${doneSessions}회 성공 / ${totalDays}일 목표 (${pct}%)</span>
-            </div>
-            <div style="background:#f0f0f0;border-radius:6px;height:10px;overflow:hidden">
-                <div style="width:${pct}%;height:100%;background:${barColor};border-radius:6px"></div>
-            </div>`;
-
-        // 누적 통계 카드
-        const dur = s.total_duration_sec;
-        const durStr = dur >= 3600 ? `${Math.floor(dur/3600)}h ${Math.floor((dur%3600)/60)}m` : `${Math.floor(dur/60)}m ${dur%60}s`;
-        const statCards = [
-            { label: '총 시청', value: `${s.total_watched}개`, color: '#6495ed' },
-            { label: '롱폼', value: `${s.total_longform}개`, color: '#f39c12' },
-            { label: '숏폼', value: `${s.total_shortform}개`, color: '#ff6b9d' },
-            { label: '총 시청시간', value: durStr, color: '#2ed573' },
-            { label: '좋아요', value: `${s.total_liked}개`, color: '#e74c3c' },
-            { label: '세션 수', value: `${s.sessions_count}회`, color: '#a29bfe' },
-        ];
-        document.getElementById('warmingDetailStats').innerHTML = statCards.map(c => `
-            <div style="background:#ffffff;border-radius:10px;padding:12px;text-align:center;border:1px solid #e0e0e0">
-                <div style="font-size:18px;font-weight:700;color:${c.color}">${c.value}</div>
-                <div style="font-size:11px;color:#888;margin-top:3px">${c.label}</div>
-            </div>`).join('');
-
-        // 세션 로그 행
-        const statusMap = {
-            success: '<span style="color:#2ed573">✓ 완료</span>',
-            login_failed: '<span style="color:#f39c12">로그인 실패</span>',
-            suspended: '<span style="color:#ff5050">정지 감지</span>',
-            error: '<span style="color:#ff5050">오류</span>',
-        };
-        if (res.logs.length === 0) {
-            document.getElementById('warmingDetailLogs').innerHTML =
-                '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px">세션 기록 없음</td></tr>';
-        } else {
-            document.getElementById('warmingDetailLogs').innerHTML = res.logs.map((l, idx) => {
-                const d = new Date(l.created_at);
-                const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-                const lDur = l.total_duration_sec;
-                const lDurStr = lDur >= 60 ? `${Math.floor(lDur/60)}m ${lDur%60}s` : `${lDur}s`;
-                const items = Array.isArray(l.watched_topics) ? l.watched_topics : [];
-                const hasItems = items.length > 0;
-                const toggleBtn = hasItems
-                    ? `<span onclick="toggleWatchedItems(${idx})" style="cursor:pointer;color:#6495ed;user-select:none" title="시청 영상 펼치기">▶</span>`
-                    : '';
-                const itemsHtml = hasItems ? `
-                    <tr id="watched-items-${idx}" style="display:none;background:#fafbfc">
-                        <td colspan="8" style="padding:8px 14px">
-                            <div style="font-size:11px;color:#666;margin-bottom:4px;font-weight:600">시청 영상 (${items.length}개)</div>
-                            <div style="display:flex;flex-direction:column;gap:3px">
-                                ${items.map(it => {
-                                    const kw = (it.keyword || '').toString();
-                                    const tt = (it.title || '').toString();
-                                    const dsec = Number(it.duration || 0);
-                                    const ds = dsec >= 60 ? `${Math.floor(dsec/60)}m ${dsec%60}s` : `${dsec}s`;
-                                    const icon = it.is_short ? '📱' : '🎬';
-                                    return `<div style="font-size:11px;color:#333;padding:3px 6px;background:#fff;border-radius:4px;border:1px solid #eee">
-                                        ${icon} <span style="color:#6495ed">🔍${kw}</span> → <span style="color:#333">${tt}</span> <span style="color:#888">(${ds})</span>
-                                    </div>`;
-                                }).join('')}
-                            </div>
-                        </td>
-                    </tr>` : '';
-                return `<tr style="border-bottom:1px solid #f0f0f0;color:#333">
-                    <td style="padding:6px 8px">${toggleBtn} ${dateStr}</td>
-                    <td style="text-align:center;padding:6px 8px">D+${l.day_num}</td>
-                    <td style="text-align:center;padding:6px 8px;color:#f39c12">${l.watched_longform}</td>
-                    <td style="text-align:center;padding:6px 8px;color:#ff6b9d">${l.watched_shortform}</td>
-                    <td style="text-align:center;padding:6px 8px;color:#2ed573">${lDurStr}</td>
-                    <td style="text-align:center;padding:6px 8px">${l.liked}</td>
-                    <td style="text-align:center;padding:6px 8px">${l.subscribed}</td>
-                    <td style="text-align:center;padding:6px 8px">${statusMap[l.status] || l.status}</td>
-                </tr>${itemsHtml}`;
-            }).join('');
-        }
-    } catch (e) {
-        document.getElementById('warmingDetailStats').innerHTML = `<div style="color:var(--red)">오류: ${e.message}</div>`;
-    }
-}
-
-function toggleWatchedItems(idx) {
-    const el = document.getElementById('watched-items-' + idx);
-    if (!el) return;
-    el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
-}
-
 // ── 관심사 키워드 모달 ──────────────────────────────────────
 let _currentKeywordAccountId = null;
 let _currentKeywords = [];
@@ -8701,24 +8043,6 @@ async function changeAccountType(accountId, safeId, newType) {
     }
 }
 
-async function enableWarming(email) {
-    if (!confirm(`${email} 계정의 워밍업을 시작하시겠습니까?\n(14일간 자동 워밍업이 진행됩니다)`)) return;
-    try {
-        const res = await api('/api/accounts/warming/set', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, action: 'start', warming_days: 14 }),
-        });
-        if (res && !res.error) {
-            alert('워밍업이 활성화되었습니다.');
-            await loadAccountList();
-        } else {
-            alert(res?.error || '활성화 실패');
-        }
-    } catch (e) {
-        alert('오류: ' + e.message);
-    }
-}
 </script>
 
 </body>
