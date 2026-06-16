@@ -123,6 +123,7 @@ PLAN_FEATURES = {
         "like_preview": False,
         "tracking_unlimited": False,
         "api_access": False,
+        "youtube_collect": False,
     },
     "business": {
         "comment_post": True,
@@ -138,6 +139,7 @@ PLAN_FEATURES = {
         "like_preview": True,
         "tracking_unlimited": False,
         "api_access": False,
+        "youtube_collect": False,
     },
     "agency": {
         "comment_post": True,
@@ -153,6 +155,7 @@ PLAN_FEATURES = {
         "like_preview": True,
         "tracking_unlimited": True,
         "api_access": False,
+        "youtube_collect": True,
     },
     "enterprise": {
         "comment_post": True,
@@ -168,6 +171,7 @@ PLAN_FEATURES = {
         "like_preview": True,
         "tracking_unlimited": True,
         "api_access": True,
+        "youtube_collect": True,
     },
 }
 
