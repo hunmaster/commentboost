@@ -355,11 +355,12 @@ class Campaign(db.Model):
     __tablename__ = 'campaigns'
     
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)  # 소유 유저 (유저별 격리)
     name = db.Column(db.String(100), nullable=False)
     keyword = db.Column(db.String(200), nullable=False)
     status = db.Column(db.String(50), default='대기중')  # 대기중/수집중/완료/실패
     created_at = db.Column(db.DateTime, default=_now_kst)
-    
+
     videos = db.relationship('VideoTarget', backref='campaign', lazy=True, cascade="all, delete-orphan")
 
 class VideoTarget(db.Model):
@@ -368,7 +369,7 @@ class VideoTarget(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
-    video_id = db.Column(db.String(50), nullable=False, unique=True)
+    video_id = db.Column(db.String(50), nullable=False, index=True)  # 전역 unique 아님 — 유저/캠페인별 중복 허용
     title = db.Column(db.String(300), nullable=False)
     url = db.Column(db.String(300), nullable=False)
     description = db.Column(db.Text, nullable=True)

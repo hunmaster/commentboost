@@ -354,6 +354,39 @@ with app.app_context():
             _cursor.execute("ALTER TABLE youtube_accounts ADD COLUMN daily_comment_limit INTEGER DEFAULT 10")
         if _yt_cols and "interest_keywords" not in _yt_cols:
             _cursor.execute("ALTER TABLE youtube_accounts ADD COLUMN interest_keywords TEXT")
+        # campaigns: user_id 컬럼 추가 (유저별 캠페인 격리)
+        _cursor.execute("PRAGMA table_info(campaigns)")
+        _camp_cols = {row[1] for row in _cursor.fetchall()}
+        if _camp_cols and "user_id" not in _camp_cols:
+            _cursor.execute("ALTER TABLE campaigns ADD COLUMN user_id INTEGER")
+        # videos: video_id 전역 UNIQUE 제약 제거 (유저/캠페인별 동일 영상 허용 → 테이블 재생성)
+        _cursor.execute("PRAGMA index_list(videos)")
+        _has_unique_videoid = False
+        for _ix in _cursor.fetchall():
+            if _ix[2]:  # unique == 1
+                _cursor.execute(f"PRAGMA index_info('{_ix[1]}')")
+                if [r[2] for r in _cursor.fetchall()] == ["video_id"]:
+                    _has_unique_videoid = True
+                    break
+        if _has_unique_videoid:
+            _cursor.executescript(
+                """
+                CREATE TABLE videos_new (
+                    id INTEGER PRIMARY KEY,
+                    campaign_id INTEGER NOT NULL,
+                    video_id VARCHAR(50) NOT NULL,
+                    title VARCHAR(300) NOT NULL,
+                    url VARCHAR(300) NOT NULL,
+                    description TEXT,
+                    collected_at DATETIME
+                );
+                INSERT INTO videos_new (id, campaign_id, video_id, title, url, description, collected_at)
+                    SELECT id, campaign_id, video_id, title, url, description, collected_at FROM videos;
+                DROP TABLE videos;
+                ALTER TABLE videos_new RENAME TO videos;
+                CREATE INDEX ix_videos_video_id ON videos (video_id);
+                """
+            )
         _conn.commit()
         _conn.close()
     # 새 테이블도 생성 (youtube_accounts, comment_tracking, user_settings)

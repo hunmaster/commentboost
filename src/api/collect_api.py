@@ -3,6 +3,7 @@ YouTube Data Collection API (Phase 1)
 """
 import yt_dlp
 from flask import Blueprint, jsonify, request
+from flask_login import login_required, current_user
 from src.models import db, Campaign, VideoTarget
 from src.license_client import license_client
 
@@ -21,10 +22,12 @@ def _require_collect_feature():
 
 
 @collect_bp.route('/api/youtube/collect', methods=['POST'])
+@login_required
 def start_collect():
     gate = _require_collect_feature()
     if gate:
         return gate
+    uid = current_user.id
     data = request.json or {}
     keyword = data.get('keyword', '').strip()
     try:
@@ -32,13 +35,13 @@ def start_collect():
     except (TypeError, ValueError):
         max_videos = 10
     max_videos = max(1, min(max_videos, 50))  # 1~50개로 제한
-    campaign_name = (data.get('campaign_name') or f"{keyword} 캠페인").strip()
+    campaign_name = (data.get('campaign_name') or f"{keyword} 캠페인").strip()[:100]
 
     if not keyword:
         return jsonify({'error': '키워드가 필요합니다.'}), 400
 
-    # 1. 새 캠페인 생성
-    campaign = Campaign(name=campaign_name, keyword=keyword, status='수집중')
+    # 1. 새 캠페인 생성 (현재 유저 소유)
+    campaign = Campaign(user_id=uid, name=campaign_name, keyword=keyword, status='수집중')
     db.session.add(campaign)
     db.session.commit()
 
@@ -48,11 +51,20 @@ def start_collect():
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
+        'socket_timeout': 15,
     }
 
     try:
+        # 이 유저가 이미 수집한 영상 ID (유저별 중복 방지)
+        existing_ids = {
+            row[0] for row in db.session.query(VideoTarget.video_id)
+            .join(Campaign, VideoTarget.campaign_id == Campaign.id)
+            .filter(Campaign.user_id == uid).all()
+        }
+
         videos_collected = 0
         duplicates_skipped = 0
+        seen = set()
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             results = ydl.extract_info(f"ytsearch{max_videos}:{keyword}", download=False)
 
@@ -64,20 +76,21 @@ def start_collect():
             if not video_id:
                 continue
 
-            title = entry.get('title') or '(제목 없음)'
-            url = entry.get('url') or f"https://www.youtube.com/watch?v={video_id}"
-            description = entry.get('description') or ''
-
-            # 중복 확인 (video_id는 전역 unique — 이미 수집된 영상은 건너뜀)
-            if VideoTarget.query.filter_by(video_id=video_id).first():
+            # 중복: 이미 보유했거나 이번 검색에서 본 영상은 건너뜀 (유저 범위)
+            if video_id in existing_ids or video_id in seen:
                 duplicates_skipped += 1
                 continue
+            seen.add(video_id)
+
+            title = (entry.get('title') or '(제목 없음)')[:300]
+            url = entry.get('url') or f"https://www.youtube.com/watch?v={video_id}"
+            description = entry.get('description') or ''
 
             db.session.add(VideoTarget(
                 campaign_id=campaign.id,
                 video_id=video_id,
                 title=title,
-                url=url,
+                url=url[:300],
                 description=description,
             ))
             videos_collected += 1
@@ -103,12 +116,16 @@ def start_collect():
         db.session.commit()
         return jsonify({'error': str(e)}), 500
 
+
 @collect_bp.route('/api/youtube/campaigns', methods=['GET'])
+@login_required
 def get_campaigns():
     gate = _require_collect_feature()
     if gate:
         return gate
-    campaigns = Campaign.query.order_by(Campaign.created_at.desc()).all()
+    campaigns = (Campaign.query
+                 .filter_by(user_id=current_user.id)
+                 .order_by(Campaign.created_at.desc()).all())
     results = []
     for c in campaigns:
         videos_count = VideoTarget.query.filter_by(campaign_id=c.id).count()
@@ -122,11 +139,18 @@ def get_campaigns():
         })
     return jsonify({'campaigns': results})
 
+
 @collect_bp.route('/api/youtube/campaigns/<int:campaign_id>/videos', methods=['GET'])
+@login_required
 def get_campaign_videos(campaign_id):
     gate = _require_collect_feature()
     if gate:
         return gate
+    # 소유권 확인 — 남의 캠페인 영상은 조회 불가
+    campaign = Campaign.query.filter_by(id=campaign_id, user_id=current_user.id).first()
+    if not campaign:
+        return jsonify({'error': '캠페인을 찾을 수 없습니다.'}), 404
+
     videos = VideoTarget.query.filter_by(campaign_id=campaign_id).all()
     results = []
     for v in videos:
