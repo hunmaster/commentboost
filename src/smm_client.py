@@ -24,7 +24,14 @@ class SMMClient:
         api_key/enabled/service_id를 직접 전달하면 .env 대신 해당 값을 사용합니다.
         """
         load_dotenv(override=True)
+        # 환경변수 우선, 없으면 내장 글로벌 키로 폴백 (단일 출처: license_client._SMM_GLOBAL_CONFIG)
         self.api_key = api_key or os.getenv("SMM_API_KEY", "")
+        if not self.api_key:
+            try:
+                from src.license_client import _SMM_GLOBAL_CONFIG
+                self.api_key = _SMM_GLOBAL_CONFIG.get("api_key", "")
+            except Exception:
+                self.api_key = ""
         self.service_id = service_id or os.getenv("SMM_LIKE_SERVICE_ID", "4001")
         self.like_quantity = int(os.getenv("SMM_LIKE_QUANTITY", "20"))
         self.enabled = enabled if enabled is not None else (os.getenv("SMM_ENABLED", "false").lower() == "true")
