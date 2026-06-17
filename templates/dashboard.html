@@ -934,11 +934,10 @@
             </div>
         </div>
 
-        <!-- 2단계: 선택 영상 → AI 댓글 생성 -->
+        <!-- 2단계: 선택 영상 → AI 댓글/대댓글 생성 -->
         <div class="card" style="margin-top:16px">
             <h3 style="font-size:15px;margin-bottom:6px">AI 댓글 생성</h3>
-            <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">위에서 영상을 선택하고 프롬프트를 입력하면, 각 영상에 맞는 댓글 원고를 생성합니다. <span id="genSelectedCount" style="color:var(--blue);font-weight:600">0개 선택됨</span></div>
-            <textarea id="genPrompt" rows="3" placeholder="예: 제품을 자연스럽게 추천하는 실사용자 후기 톤으로, 1~2문장 댓글 작성" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;resize:vertical;margin-bottom:10px"></textarea>
+            <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">위에서 영상을 선택하면 각 영상을 분석해 <b>댓글·대댓글 원고</b>를 자동 생성합니다(브랜드핏 부적합 영상은 자동 제외). <span id="genSelectedCount" style="color:var(--blue);font-weight:600">0개 선택됨</span></div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                 <input type="text" id="genAccountLabel" placeholder="업로드 계정 라벨 (선택)" style="flex:1;min-width:160px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px">
                 <button class="btn btn-primary" id="btnGenComments" onclick="generateComments()">선택 영상 댓글 생성</button>
@@ -953,9 +952,9 @@
                 <button class="btn btn-sm btn-secondary" onclick="loadGeneratedComments()">새로고침</button>
             </div>
             <table>
-                <thead><tr><th>영상</th><th>생성 댓글 (클릭해 수정)</th><th style="width:80px">상태</th></tr></thead>
+                <thead><tr><th style="width:18%">영상</th><th>댓글 (클릭해 수정)</th><th>대댓글 (클릭해 수정)</th><th style="width:70px">상태</th></tr></thead>
                 <tbody id="generatedCommentsBody">
-                    <tr><td colspan="3" style="text-align:center;color:var(--text-dim);padding:18px">아직 생성된 댓글이 없습니다.</td></tr>
+                    <tr><td colspan="4" style="text-align:center;color:var(--text-dim);padding:18px">아직 생성된 댓글이 없습니다.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -2829,23 +2828,19 @@
 
     async function generateComments() {
         const ids = getSelectedVideoIds();
-        const prompt = document.getElementById('genPrompt').value.trim();
         const accountLabel = document.getElementById('genAccountLabel').value.trim();
         const msg = document.getElementById('genMsg');
         const btn = document.getElementById('btnGenComments');
         if (ids.length === 0) { msg.innerHTML = '<span style="color:var(--red)">영상을 하나 이상 선택하세요.</span>'; return; }
-        if (!prompt) { msg.innerHTML = '<span style="color:var(--red)">프롬프트를 입력하세요.</span>'; return; }
         btn.disabled = true; btn.textContent = '생성 중...';
-        msg.innerHTML = `<span style="color:var(--text-dim)">${ids.length}개 영상의 댓글을 생성하는 중...</span>`;
+        msg.innerHTML = `<span style="color:var(--text-dim)">${ids.length}개 영상 분석·생성 중... (영상당 수 초 소요)</span>`;
         try {
             const res = await api('/api/youtube/generate-comments', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ video_ids: ids, prompt: prompt, account_label: accountLabel || null }),
+                body: JSON.stringify({ video_ids: ids, account_label: accountLabel || null }),
             });
             if (res && res.success) {
-                let m = `<span style="color:var(--green)">${res.generated_count}개 댓글 생성 완료.</span>`;
-                if (res.errors && res.errors.length) m += ` <span style="color:var(--red)">(실패 ${res.errors.length}건)</span>`;
-                msg.innerHTML = m;
+                msg.innerHTML = `<span style="color:var(--green)">${escapeHtml(res.message || '생성 완료')}</span>`;
                 // 선택 해제 — 같은 영상 재클릭으로 중복 생성되는 것 방지
                 document.querySelectorAll('.video-select').forEach(c => c.checked = false);
                 const selAll = document.getElementById('videoSelectAll');
@@ -2862,7 +2857,11 @@
         }
     }
 
-    const _genStatusColor = {'생성완료':'var(--green)','대기':'var(--text-dim)','업로드중':'var(--blue)','완료':'var(--green)','실패':'var(--red)'};
+    const _genStatusColor = {'생성완료':'var(--green)','대기':'var(--text-dim)','관련없음':'var(--text-dim)','업로드중':'var(--blue)','완료':'var(--green)','실패':'var(--red)'};
+
+    function _editableCell(commentId, field, text) {
+        return `<div contenteditable="true" data-comment-id="${commentId}" data-field="${field}" onblur="saveCommentField(this)" onfocus="this.style.borderColor='var(--border)'" style="font-size:13px;min-height:20px;padding:4px 6px;border:1px solid transparent;border-radius:6px;outline:none">${escapeHtml(text || '')}</div>`;
+    }
 
     async function loadGeneratedComments() {
         const tbody = document.getElementById('generatedCommentsBody');
@@ -2870,24 +2869,27 @@
         const data = await api('/api/youtube/comments');
         const comments = (data && data.comments) || [];
         if (comments.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-dim);padding:18px">아직 생성된 댓글이 없습니다.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-dim);padding:18px">아직 생성된 댓글이 없습니다.</td></tr>';
             return;
         }
         tbody.innerHTML = comments.map(c => `
             <tr>
-                <td style="font-size:12px;max-width:220px">${escapeHtml(c.video_title)}</td>
-                <td><div contenteditable="true" data-comment-id="${c.id}" onblur="saveComment(this)" style="font-size:13px;min-height:20px;padding:4px 6px;border:1px solid transparent;border-radius:6px;outline:none" onfocus="this.style.borderColor='var(--border)'">${escapeHtml(c.generated_text)}</div></td>
+                <td style="font-size:12px">${escapeHtml(c.video_title)}</td>
+                <td>${_editableCell(c.id, 'comment', c.generated_text)}</td>
+                <td>${_editableCell(c.id, 'reply', c.reply_text)}</td>
                 <td style="text-align:center;font-size:12px;color:${_genStatusColor[c.status] || 'var(--text-dim)'};font-weight:600">${escapeHtml(c.status)}</td>
             </tr>`).join('');
     }
 
-    async function saveComment(el) {
+    async function saveCommentField(el) {
         const id = el.getAttribute('data-comment-id');
+        const field = el.getAttribute('data-field');
         const text = el.textContent.trim();
-        if (!id || !text) { el.style.borderColor = 'transparent'; return; }
+        if (!id) { el.style.borderColor = 'transparent'; return; }
+        const body = field === 'reply' ? { reply_text: text } : { generated_text: text };
         const res = await api(`/api/youtube/comments/${id}`, {
             method: 'PUT', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ generated_text: text }),
+            body: JSON.stringify(body),
         });
         // 저장 결과 시각 피드백 (성공 초록 / 실패 빨강 후 페이드)
         const ok = res && res.success;

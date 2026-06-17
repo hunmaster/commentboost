@@ -359,6 +359,11 @@ with app.app_context():
         _camp_cols = {row[1] for row in _cursor.fetchall()}
         if _camp_cols and "user_id" not in _camp_cols:
             _cursor.execute("ALTER TABLE campaigns ADD COLUMN user_id INTEGER")
+        # comments: reply_text 컬럼 추가 (AI 대댓글 저장)
+        _cursor.execute("PRAGMA table_info(comments)")
+        _cmt_cols = {row[1] for row in _cursor.fetchall()}
+        if _cmt_cols and "reply_text" not in _cmt_cols:
+            _cursor.execute("ALTER TABLE comments ADD COLUMN reply_text TEXT")
         # videos: video_id 전역 UNIQUE 제약 제거 (유저/캠페인별 동일 영상 허용 → 테이블 재생성)
         _cursor.execute("PRAGMA index_list(videos)")
         _has_unique_videoid = False

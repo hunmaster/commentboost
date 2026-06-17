@@ -384,9 +384,10 @@ class CommentTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     video_id = db.Column(db.Integer, db.ForeignKey('videos.id'), nullable=False)
     account_label = db.Column(db.String(100), nullable=True)  # 업로드할 계정
-    prompt = db.Column(db.Text, nullable=True)               # AI 생성에 사용된 프롬프트
+    prompt = db.Column(db.Text, nullable=True)               # AI 생성에 사용된 프롬프트(레거시)
     generated_text = db.Column(db.Text, nullable=False)      # AI가 생성한 댓글 내용
-    status = db.Column(db.String(50), default='대기')        # 대기/생성완료/업로드중/완료/실패
+    reply_text = db.Column(db.Text, nullable=True)           # AI가 생성한 대댓글 내용
+    status = db.Column(db.String(50), default='대기')        # 대기/생성완료/관련없음/업로드중/완료/실패
     result_url = db.Column(db.String(300), nullable=True)    # 3단계 업로드 후 결과 URL
     created_at = db.Column(db.DateTime, default=_now_kst)
     executed_at = db.Column(db.DateTime, nullable=True)
