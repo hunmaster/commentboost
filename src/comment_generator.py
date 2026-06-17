@@ -154,6 +154,9 @@ def generate(keyword, title, description, url, brand=None, max_comment_attempts=
         # 1) 영상 분석
         analysis_raw = _chat(_PROMPTS["analysis_system"], _analysis_user(keyword, title, description, url), 0.3, 900)
         v = _parse_analysis(analysis_raw)
+        if not v:
+            # 분석 JSON 파싱 실패 → 빈 컨텍스트로 댓글 생성하면 저품질. 추가 호출 없이 빠른 실패.
+            return {"status": "실패", "comment_text": "", "reply_text": "", "brand_fit": "", "error": "영상 분석 결과 파싱 실패"}
         brand_fit = str(v.get("brand_fit", "high")).lower()
         if brand_fit == "low":
             return {
