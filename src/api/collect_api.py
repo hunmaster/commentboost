@@ -2,6 +2,8 @@
 YouTube Data Collection API (Phase 1)
 """
 from io import BytesIO
+import base64
+import urllib.parse
 import yt_dlp
 from flask import Blueprint, jsonify, request, send_file
 from flask_login import login_required, current_user
@@ -13,6 +15,23 @@ collect_bp = Blueprint('collect_api', __name__)
 # 영상 수집은 Agency 이상 전용 기능
 COLLECT_FEATURE = "youtube_collect"
 COLLECT_UPGRADE_MSG = "영상 수집은 Agency 플랜(월 990,000원)부터 사용 가능합니다. 구독을 업그레이드해주세요."
+
+# YouTube 검색필터(sp) 코드 — 기간(업로드일)
+_PERIOD_SP = {'today': 2, 'week': 3, 'month': 4, 'year': 5}
+
+
+def _build_sp(sort_by, period):
+    """YouTube 검색필터 sp 파라미터 생성 (정렬+기간, 타입=영상). 실측 검증된 protobuf 인코딩."""
+    sub = b''
+    pcode = _PERIOD_SP.get(period)
+    if pcode:
+        sub += bytes([0x08, pcode])      # field2.1 = 기간
+    sub += bytes([0x10, 0x01])            # field2.2 = 타입(영상)
+    msg = b''
+    if sort_by == 'views':
+        msg += bytes([0x08, 0x03])        # field1 = 정렬(조회수)
+    msg += bytes([0x12, len(sub)]) + sub
+    return base64.b64encode(msg).decode()
 
 
 def _require_collect_feature():
@@ -37,6 +56,10 @@ def start_collect():
         max_videos = 10
     max_videos = max(1, min(max_videos, 50))  # 1~50개로 제한
     campaign_name = (data.get('campaign_name') or f"{keyword} 캠페인").strip()[:100]
+    # 필터: 영상타입(all/shorts/long) · 정렬(relevance/views) · 기간(all/today/week/month/year)
+    video_type = (data.get('video_type') or 'all')
+    sort_by = (data.get('sort_by') or 'relevance')
+    period = (data.get('period') or 'all')
 
     if not keyword:
         return jsonify({'error': '키워드가 필요합니다.'}), 400
@@ -46,14 +69,31 @@ def start_collect():
     db.session.add(campaign)
     db.session.commit()
 
-    # 2. yt-dlp 옵션 (검색 메타데이터만 빠르게 추출)
+    # 2. 길이필터가 있으면 더 많이 받아 거른다(오버페치). 정렬·기간은 YouTube sp 필터로.
+    over = 8 if video_type == 'shorts' else (3 if video_type == 'long' else 1)
+    fetch_n = min(max_videos * over, 50)
     ydl_opts = {
         'extract_flat': True,
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
         'socket_timeout': 15,
+        'playlistend': fetch_n,
     }
+    if sort_by == 'views' or period in _PERIOD_SP:
+        sp = _build_sp(sort_by, period)
+        query = ("https://www.youtube.com/results?search_query="
+                 + urllib.parse.quote(keyword) + "&sp=" + urllib.parse.quote(sp))
+    else:
+        query = f"ytsearch{fetch_n}:{keyword}"
+
+    def _dur_ok(entry):
+        d = entry.get('duration')
+        if video_type == 'shorts':
+            return d is not None and d <= 60
+        if video_type == 'long':
+            return d is None or d > 60
+        return True
 
     try:
         # 이 유저가 이미 수집한 영상 ID (유저별 중복 방지)
@@ -67,14 +107,18 @@ def start_collect():
         duplicates_skipped = 0
         seen = set()
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            results = ydl.extract_info(f"ytsearch{max_videos}:{keyword}", download=False)
+            results = ydl.extract_info(query, download=False)
 
         entries = (results or {}).get('entries') or []
         for entry in entries:
+            if videos_collected >= max_videos:
+                break
             if not entry:
                 continue
             video_id = entry.get('id')
             if not video_id:
+                continue
+            if not _dur_ok(entry):
                 continue
 
             # 중복: 이미 보유했거나 이번 검색에서 본 영상은 건너뜀 (유저 범위)
