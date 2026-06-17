@@ -3963,6 +3963,122 @@ def _run_automation(limit=0, selected_ids=None):
         _credit_sync_paused = False  # 자동화 완료 → 크레딧 폴링 재개
 
 
+# ──────────────────────────── 로컬 댓글 게시 (영상수집 파이프라인, Notion 비경유) ────────────────────────────
+
+def _run_local_posting(user_id, comment_ids=None):
+    """백그라운드: 로컬 CommentTask(생성완료)를 YouTube에 게시."""
+    try:
+        with app.app_context():
+            _run_local_posting_inner(user_id, comment_ids or [])
+    except Exception as e:
+        add_log(f"댓글 게시 스레드 오류: {str(e)}", "error")
+    finally:
+        automation_state["running"] = False
+
+
+def _run_local_posting_inner(user_id, comment_ids):
+    from src.youtube_bot import YouTubeBot
+
+    accounts = load_accounts(user_id=user_id)
+    if not accounts:
+        add_log("게시할 계정이 없습니다. 계정을 먼저 등록·수동 로그인하세요.", "error")
+        return
+    acc_by_label = {a.get("label"): a for a in accounts}
+
+    q = (db.session.query(CommentTask, VideoTarget)
+         .join(VideoTarget, CommentTask.video_id == VideoTarget.id)
+         .join(Campaign, VideoTarget.campaign_id == Campaign.id)
+         .filter(Campaign.user_id == user_id, CommentTask.status == '생성완료'))
+    if comment_ids:
+        q = q.filter(CommentTask.id.in_(comment_ids))
+    rows = q.order_by(CommentTask.created_at.asc()).all()
+
+    automation_state["total"] = len(rows)
+    automation_state["progress"] = 0
+    if not rows:
+        add_log("게시할 댓글(생성완료 상태)이 없습니다.", "warning")
+        return
+
+    add_log(f"댓글 게시 시작 — 대상 {len(rows)}건", "info")
+    fingerprint_manager = FingerprintManager()
+    success = fail = 0
+    for i, (task, video) in enumerate(rows):
+        automation_state["progress"] = i + 1
+        account = acc_by_label.get(task.account_label) or accounts[0]
+        label = account.get("label") or account.get("email")
+        automation_state["current_task"] = f"[{i+1}/{len(rows)}] {label} → {video.title[:30]}"
+        task.status = '업로드중'
+        db.session.commit()
+
+        bot = None
+        try:
+            bot = YouTubeBot(fingerprint_manager=fingerprint_manager, account_label=label, user_id=user_id)
+            bot.start_browser()
+            if not bot.login_youtube(account.get("email"), account.get("password")):
+                add_log(f"[게시 실패] {label} 로그인 실패 — 수동 로그인이 필요합니다", "error")
+                task.status = '실패'
+                db.session.commit()
+                fail += 1
+                continue
+            comment_url = bot.post_comment(video.url, task.generated_text)
+            if not comment_url:
+                add_log(f"[게시 실패] 댓글 작성 실패: {video.title[:30]}", "error")
+                task.status = '실패'
+                db.session.commit()
+                fail += 1
+                continue
+            # 대댓글: 댓글 URL이 lc= 로 검증된 경우에만
+            if task.reply_text and "&lc=" in comment_url:
+                try:
+                    bot.post_reply(comment_url, task.reply_text)
+                except Exception as _re:
+                    add_log(f"[대댓글 실패] {video.title[:30]}: {_re}", "warning")
+            task.status = '완료'
+            task.result_url = comment_url
+            task.executed_at = datetime.now()
+            db.session.commit()
+            success += 1
+            add_log(f"[게시 완료] {video.title[:30]} → {comment_url[:60]}", "success")
+        except Exception as e:
+            db.session.rollback()
+            try:
+                task.status = '실패'
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+            fail += 1
+            add_log(f"[게시 오류] {video.title[:30]}: {str(e)}", "error")
+        finally:
+            if bot:
+                try:
+                    bot.close_browser()
+                except Exception:
+                    pass
+
+    add_log(f"댓글 게시 완료 — 성공 {success}건 / 실패 {fail}건", "success")
+
+
+@app.route("/api/youtube/post-comments", methods=["POST"])
+@login_required
+def api_post_local_comments():
+    """생성된 댓글(로컬 CommentTask 생성완료)을 YouTube에 게시 (Agency 전용)."""
+    if not license_client.can_use_feature("youtube_collect"):
+        return jsonify({"error": "영상 수집/게시는 Agency 플랜부터 사용 가능합니다."}), 403
+    data = request.get_json(silent=True) or {}
+    comment_ids = data.get("comment_ids", [])
+    with automation_lock:
+        if automation_state["running"]:
+            return jsonify({"error": "이미 다른 작업이 실행 중입니다. 완료 후 다시 시도하세요."}), 409
+        automation_state["running"] = True
+        automation_state["logs"] = []
+        automation_state["progress"] = 0
+        automation_state["current_task"] = "댓글 게시 준비 중..."
+    uid = current_user.id
+    automation_state["user_id"] = uid
+    threading.Thread(target=_run_local_posting, args=(uid, comment_ids), daemon=True).start()
+    return jsonify({"success": True, "message": "댓글 게시를 시작했습니다. 실행 로그 탭에서 진행 상황을 확인하세요."})
+
+
 def _run_automation_inner(limit=0, selected_ids=None):
     import time
     from src.youtube_bot import YouTubeBot

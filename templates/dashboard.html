@@ -949,7 +949,10 @@
         <div class="table-wrap" style="margin-top:16px">
             <div class="table-title">
                 <span>생성된 댓글</span>
-                <button class="btn btn-sm btn-secondary" onclick="loadGeneratedComments()">새로고침</button>
+                <div style="display:flex;gap:8px">
+                    <button class="btn btn-sm btn-primary" id="btnPostComments" onclick="postGeneratedComments()" title="생성완료 상태의 댓글을 YouTube에 게시합니다">YouTube 게시</button>
+                    <button class="btn btn-sm btn-secondary" onclick="loadGeneratedComments()">새로고침</button>
+                </div>
             </div>
             <table>
                 <thead><tr><th style="width:18%">영상</th><th>댓글 (클릭해 수정)</th><th>대댓글 (클릭해 수정)</th><th style="width:70px">상태</th></tr></thead>
@@ -2879,6 +2882,27 @@
                 <td>${_editableCell(c.id, 'reply', c.reply_text)}</td>
                 <td style="text-align:center;font-size:12px;color:${_genStatusColor[c.status] || 'var(--text-dim)'};font-weight:600">${escapeHtml(c.status)}</td>
             </tr>`).join('');
+    }
+
+    async function postGeneratedComments() {
+        const btn = document.getElementById('btnPostComments');
+        const msg = document.getElementById('genMsg');
+        if (!confirm('생성완료 상태의 댓글/대댓글을 YouTube에 게시합니다.\n계정별 수동 로그인이 완료돼 있어야 합니다.\n\n진행할까요?')) return;
+        btn.disabled = true; btn.textContent = '게시 시작 중...';
+        try {
+            const res = await api('/api/youtube/post-comments', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}),
+            });
+            if (res && res.success) {
+                if (msg) msg.innerHTML = `<span style="color:var(--green)">${escapeHtml(res.message || '게시 시작됨')}</span>`;
+            } else {
+                if (msg) msg.innerHTML = `<span style="color:var(--red)">${(res && res.error) || '게시 시작 실패'}</span>`;
+            }
+        } catch (e) {
+            if (msg) msg.innerHTML = '<span style="color:var(--red)">서버 연결 실패</span>';
+        } finally {
+            btn.disabled = false; btn.textContent = 'YouTube 게시';
+        }
     }
 
     async function saveCommentField(el) {
