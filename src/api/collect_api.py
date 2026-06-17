@@ -1,10 +1,11 @@
 """
 YouTube Data Collection API (Phase 1)
 """
+from io import BytesIO
 import yt_dlp
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 from flask_login import login_required, current_user
-from src.models import db, Campaign, VideoTarget
+from src.models import db, Campaign, VideoTarget, CommentTask
 from src.license_client import license_client
 
 collect_bp = Blueprint('collect_api', __name__)
@@ -163,3 +164,51 @@ def get_campaign_videos(campaign_id):
             'collected_at': v.collected_at.isoformat()
         })
     return jsonify({'videos': results})
+
+
+@collect_bp.route('/api/youtube/export', methods=['GET'])
+@login_required
+def export_data():
+    """본인 수집 영상 + 생성 댓글/대댓글을 엑셀(.xlsx)로 내려받기."""
+    gate = _require_collect_feature()
+    if gate:
+        return gate
+    import openpyxl
+
+    uid = current_user.id
+    rows = (db.session.query(VideoTarget, Campaign)
+            .join(Campaign, VideoTarget.campaign_id == Campaign.id)
+            .filter(Campaign.user_id == uid)
+            .order_by(Campaign.created_at.desc(), VideoTarget.id.asc())
+            .all())
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "수집·생성"
+    ws.append(['캠페인', '키워드', '영상 제목', '영상 URL', 'video_id',
+               '댓글', '대댓글', '상태', '결과 URL', '수집일시'])
+    for video, campaign in rows:
+        task = (CommentTask.query.filter_by(video_id=video.id)
+                .order_by(CommentTask.created_at.desc()).first())
+        ws.append([
+            campaign.name,
+            campaign.keyword,
+            video.title,
+            video.url,
+            video.video_id,
+            (task.generated_text if task else ''),
+            (task.reply_text if task else ''),
+            (task.status if task else ''),
+            (task.result_url if task else ''),
+            video.collected_at.isoformat() if video.collected_at else '',
+        ])
+
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    return send_file(
+        bio,
+        as_attachment=True,
+        download_name="commentboost_export.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )

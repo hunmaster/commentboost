@@ -910,7 +910,10 @@
             <div class="table-wrap">
                 <div class="table-title">
                     <span>캠페인</span>
-                    <button class="btn btn-sm btn-secondary" onclick="loadCampaigns()">새로고침</button>
+                    <div style="display:flex;gap:6px">
+                        <button class="btn btn-sm btn-secondary" onclick="window.location.href='/api/youtube/export'" title="수집 영상 + 생성 댓글/대댓글을 엑셀로 내려받기">엑셀 다운로드</button>
+                        <button class="btn btn-sm btn-secondary" onclick="loadCampaigns()">새로고침</button>
+                    </div>
                 </div>
                 <table>
                     <thead><tr><th>이름</th><th>상태</th><th style="text-align:right">영상</th></tr></thead>
