@@ -2423,6 +2423,9 @@ def api_get_settings():
         "ADB_ETHERNET_NAME": s.get("ADB_ETHERNET_NAME", "이더넷"),
         "LIKE_CREDIT_THRESHOLD": s.get("LIKE_CREDIT_THRESHOLD", "5000"),
         "LIKE_CREDIT_AUTO_ALERT": s.get("LIKE_CREDIT_AUTO_ALERT", "true"),
+        "OPENAI_API_KEY": _mask_key(s.get("OPENAI_API_KEY", "")),
+        "OPENAI_COMMENT_MODEL": s.get("OPENAI_COMMENT_MODEL", "gpt-4o-mini"),
+        "OPENAI_COMMENT_BRAND": s.get("OPENAI_COMMENT_BRAND", ""),
     })
 
 
@@ -2444,6 +2447,7 @@ def api_save_settings():
             "ADB_IP_CHANGE_ENABLED", "ADB_PATH", "ADB_AIRPLANE_WAIT",
             "ADB_AUTO_ETHERNET", "ADB_ETHERNET_NAME",
             "LIKE_CREDIT_THRESHOLD", "LIKE_CREDIT_AUTO_ALERT",
+            "OPENAI_API_KEY", "OPENAI_COMMENT_MODEL", "OPENAI_COMMENT_BRAND",
         }
         # Owner 전용 글로벌 설정 (.env에도 저장)
         owner_keys = {"SMM_API_KEY", "SMM_ENABLED", "SMM_LIKE_SERVICE_ID"}

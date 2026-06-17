@@ -1773,6 +1773,24 @@
                         <input type="text" id="setNotionDbId" placeholder="30d35cfd83d3...">
                     </div>
                 </div>
+                <div>
+                    <h4 style="margin-bottom:12px;font-size:13px;color:var(--accent-light)">댓글 생성 (OpenAI)</h4>
+                    <div class="form-group">
+                        <label>OpenAI API 키</label>
+                        <input type="password" id="setOpenaiKey" placeholder="sk-...">
+                    </div>
+                    <div class="form-group">
+                        <label>생성 모델</label>
+                        <select id="setOpenaiModel">
+                            <option value="gpt-4o-mini">gpt-4o-mini (저렴·권장)</option>
+                            <option value="gpt-4o">gpt-4o (고품질)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>브랜드/홍보 키워드 <span style="color:var(--text-dim);font-size:11px">비우면 기본값(녹백스프레이)</span></label>
+                        <input type="text" id="setOpenaiBrand" placeholder="예: 녹백스프레이">
+                    </div>
+                </div>
                 {% if is_owner %}
                 <div>
                     <h4 style="margin-bottom:12px;font-size:13px;color:var(--accent-light)">SMM Kings API</h4>
@@ -4091,6 +4109,12 @@
         document.getElementById('setNotionToken').value = data.NOTION_API_TOKEN || '';
         document.getElementById('setNotionToken').placeholder = data.NOTION_API_TOKEN ? '현재 값 유지 (변경 시 새로 입력)' : 'ntn_xxxx...';
         document.getElementById('setNotionDbId').value = data.NOTION_DATABASE_ID || '';
+        if (document.getElementById('setOpenaiKey')) {
+            document.getElementById('setOpenaiKey').value = data.OPENAI_API_KEY || '';
+            document.getElementById('setOpenaiKey').placeholder = data.OPENAI_API_KEY ? '현재 값 유지 (변경 시 새로 입력)' : 'sk-...';
+            document.getElementById('setOpenaiModel').value = data.OPENAI_COMMENT_MODEL || 'gpt-4o-mini';
+            document.getElementById('setOpenaiBrand').value = data.OPENAI_COMMENT_BRAND || '';
+        }
         if (IS_OWNER) {
             document.getElementById('setSmmApiKey').value = data.SMM_API_KEY || '';
             document.getElementById('setSmmApiKey').placeholder = data.SMM_API_KEY ? '현재 값 유지 (변경 시 새로 입력)' : 'API 키 입력';
@@ -4274,6 +4298,9 @@
         const payload = {
             NOTION_API_TOKEN: document.getElementById('setNotionToken').value,
             NOTION_DATABASE_ID: document.getElementById('setNotionDbId').value,
+            OPENAI_API_KEY: document.getElementById('setOpenaiKey').value,
+            OPENAI_COMMENT_MODEL: document.getElementById('setOpenaiModel').value,
+            OPENAI_COMMENT_BRAND: document.getElementById('setOpenaiBrand').value,
             MAX_COMMENTS_PER_DAY: document.getElementById('setMaxComments').value,
             COMMENT_INTERVAL_SEC: document.getElementById('setCommentInterval').value,
             SAME_VIDEO_INTERVAL_MIN: document.getElementById('setSameVideoInterval').value,

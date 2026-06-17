@@ -162,6 +162,10 @@ class UserSettings(db.Model):
         "ADB_ETHERNET_NAME": "이더넷",
         "LIKE_CREDIT_THRESHOLD": "5000",
         "LIKE_CREDIT_AUTO_ALERT": "true",
+        # 댓글 생성(앱 내장 OpenAI)
+        "OPENAI_API_KEY": "",
+        "OPENAI_COMMENT_MODEL": "gpt-4o-mini",
+        "OPENAI_COMMENT_BRAND": "",
     }
 
     def get_settings(self):

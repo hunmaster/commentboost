@@ -3,9 +3,10 @@ AI 댓글/대댓글 생성 API (Phase 2)
 앱 내장 생성 엔진(comment_generator, OpenAI)으로 영상분석→댓글→대댓글을 생성하고
 로컬 CommentTask에 저장한다. (n8n 런타임 불필요 — 올인원)
 """
+import os
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
-from src.models import db, Campaign, VideoTarget, CommentTask
+from src.models import db, Campaign, VideoTarget, CommentTask, UserSettings
 from src.license_client import license_client
 from src import comment_generator
 
@@ -37,6 +38,15 @@ def generate_comments_for_campaign():
     if not video_ids:
         return jsonify({'error': '영상을 하나 이상 선택해주세요.'}), 400
 
+    # 생성 설정 — 유저별 설정(설정 탭)에서 OpenAI 키/모델/브랜드를 읽어 사용.
+    # 비어 있으면 generator가 환경변수(OPENAI_*)로 폴백한다.
+    us = UserSettings.query.filter_by(user_id=uid).first()
+    cfg_key = (us.get('OPENAI_API_KEY') if us else None) or os.getenv('OPENAI_API_KEY')
+    cfg_model = (us.get('OPENAI_COMMENT_MODEL') if us else None) or None
+    cfg_brand = (us.get('OPENAI_COMMENT_BRAND') if us else None) or None
+    if not cfg_key:
+        return jsonify({'error': '댓글 생성을 위해 설정 탭에서 OpenAI API 키를 입력해주세요.'}), 400
+
     # 본인 소유 캠페인의 영상만 대상 (남의 video_id는 무시)
     rows = (db.session.query(VideoTarget, Campaign)
             .join(Campaign, VideoTarget.campaign_id == Campaign.id)
@@ -62,6 +72,9 @@ def generate_comments_for_campaign():
             title=video.title,
             description=video.description or "",
             url=video.url,
+            brand=cfg_brand,
+            api_key=cfg_key,
+            model=cfg_model,
         )
         status = result.get('status', '실패')
         db.session.add(CommentTask(

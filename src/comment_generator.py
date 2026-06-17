@@ -98,16 +98,16 @@ def _model():
     return os.getenv("OPENAI_COMMENT_MODEL", "gpt-4o")
 
 
-def _chat(system, user, temperature, max_tokens, top_p=None):
+def _chat(system, user, temperature, max_tokens, top_p=None, api_key=None, model=None):
     """OpenAI Chat Completions 호출. (n8n langchain openAi 노드 = system+user 메시지)"""
     from openai import OpenAI
 
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = api_key or os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
+        raise ValueError("OPENAI_API_KEY가 설정되지 않았습니다. 설정 탭에서 OpenAI API 키를 입력하세요.")
     client = OpenAI(api_key=api_key)
     kwargs = dict(
-        model=_model(),
+        model=model or _model(),
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -142,7 +142,7 @@ def _parse_analysis(text):
         return {}
 
 
-def generate(keyword, title, description, url, brand=None, max_comment_attempts=2):
+def generate(keyword, title, description, url, brand=None, api_key=None, model=None, max_comment_attempts=2):
     """영상 1건 → 댓글/대댓글 생성.
 
     반환 dict:
@@ -152,7 +152,7 @@ def generate(keyword, title, description, url, brand=None, max_comment_attempts=
     brand = brand or os.getenv("OPENAI_COMMENT_BRAND") or DEFAULT_BRAND
     try:
         # 1) 영상 분석
-        analysis_raw = _chat(_PROMPTS["analysis_system"], _analysis_user(keyword, title, description, url), 0.3, 900)
+        analysis_raw = _chat(_PROMPTS["analysis_system"], _analysis_user(keyword, title, description, url), 0.3, 900, api_key=api_key, model=model)
         v = _parse_analysis(analysis_raw)
         if not v:
             # 분석 JSON 파싱 실패 → 빈 컨텍스트로 댓글 생성하면 저품질. 추가 호출 없이 빠른 실패.
@@ -220,7 +220,7 @@ def generate(keyword, title, description, url, brand=None, max_comment_attempts=
         passed = False
         brand_re = _brand_regex(brand)
         for _ in range(max(1, max_comment_attempts)):
-            comment_text = _chat(_render(_PROMPTS["comment_system"], ctx), _render(_PROMPTS["comment_user"], ctx), 0.95, 700, top_p=0.95)
+            comment_text = _chat(_render(_PROMPTS["comment_system"], ctx), _render(_PROMPTS["comment_user"], ctx), 0.95, 700, top_p=0.95, api_key=api_key, model=model)
             if not BANNED_RE.search(comment_text) and brand_re.search(comment_text):
                 passed = True
                 break
@@ -235,7 +235,7 @@ def generate(keyword, title, description, url, brand=None, max_comment_attempts=
 
         # 4) 대댓글 생성
         ctx["comment_text"] = comment_text
-        reply_text = _chat(_render(_PROMPTS["reply_system"], ctx), _render(_PROMPTS["reply_user"], ctx), 0.85, 300)
+        reply_text = _chat(_render(_PROMPTS["reply_system"], ctx), _render(_PROMPTS["reply_user"], ctx), 0.85, 300, api_key=api_key, model=model)
 
         return {
             "status": "생성완료",
