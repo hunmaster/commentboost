@@ -8,8 +8,12 @@ echo   CommentBoost 시작
 echo ============================================
 echo.
 
+:: 파이썬 선택 — 의존성이 설치된 .venv 우선, 없으면 시스템 python
+set "PY=python"
+if exist ".venv\Scripts\python.exe" set "PY=.venv\Scripts\python.exe"
+
 :: Python 확인
-python --version >nul 2>&1
+"%PY%" --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo [오류] Python이 설치되어 있지 않습니다.
     echo install.bat을 먼저 실행해주세요.
@@ -38,11 +42,11 @@ echo 종료하려면 앱 창을 닫거나 이 창에서 Ctrl+C를 누르세요.
 echo ────────────────────────────────────────────
 
 :: 데스크탑 앱 실행 (PyWebView)
-python desktop.py
+"%PY%" desktop.py
 if %errorlevel% neq 0 (
     echo.
     echo [대체] 데스크탑 모드 실행 실패. 브라우저 모드로 시작합니다...
     echo 대시보드: https://localhost:5000
     start /b cmd /c "timeout /t 2 /nobreak >nul && start https://localhost:5000"
-    python app.py
+    "%PY%" app.py
 )
