@@ -2464,6 +2464,8 @@ def api_save_settings():
         }
         # Owner 전용 글로벌 설정 (.env에도 저장)
         owner_keys = {"SMM_API_KEY", "SMM_ENABLED", "SMM_LIKE_SERVICE_ID"}
+        # 비밀 키 — 빈 값으로 덮어쓰기 금지(실수로 지워지는 사고 방지). 변경하려면 새 값 입력.
+        secret_keys = {"NOTION_API_TOKEN", "OPENAI_API_KEY", "YOUTUBE_API_KEY"}
 
         # 유저 설정 업데이트
         us = _get_or_create_user_settings(current_user.id)
@@ -2473,6 +2475,8 @@ def api_save_settings():
                 continue
             if _is_masked_value(str(value)):
                 continue  # 마스킹된 값은 저장하지 않음 (기존 값 유지)
+            if key in secret_keys and not str(value).strip():
+                continue  # 비밀 키는 빈 값이면 기존 값 유지 (실수 삭제 방지)
             user_updates[key] = str(value)
 
         if user_updates:
