@@ -2927,65 +2927,72 @@
             modal.innerHTML = `
                 <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:22px 24px;max-width:880px;width:94%;max-height:88vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.4)">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-                        <h3 style="font-size:16px;margin:0">n8n vs 앱 품질 비교</h3>
+                        <h3 style="font-size:16px;margin:0">n8n 원본 vs 앱 품질 비교</h3>
                         <button class="btn btn-sm btn-secondary" onclick="document.getElementById('compareModal').style.display='none'">닫기</button>
                     </div>
-                    <div id="cmpTitle" style="font-size:12px;color:var(--text-dim);margin-bottom:14px"></div>
+                    <div id="cmpTitle" style="font-size:12px;color:var(--text-dim);margin-bottom:4px"></div>
+                    <div style="font-size:11px;color:var(--text-dim);background:var(--bg);border-radius:6px;padding:8px 10px;margin-bottom:14px;line-height:1.5">
+                        ℹ️ 엔진·프롬프트·페르소나·금칙어는 n8n 워크플로우와 <b>100% 동일</b>(JSON 검증). 유일한 차이는 <b>모델</b>입니다 — A는 n8n 원본 모델(gpt-4o), B는 앱 현재 설정 모델. 같은 영상으로 양쪽을 자동 생성해 비교합니다.
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+                        <button class="btn btn-primary" id="cmpGenBtn" onclick="compareGenerateBoth()">양쪽 자동 생성</button>
+                        <button class="btn btn-secondary" id="cmpJudgeBtn" onclick="compareJudge()">AI 비교 평가</button>
+                        <span id="cmpMsg" style="font-size:12px;color:var(--text-dim)"></span>
+                    </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
                         <div>
-                            <h4 style="font-size:13px;color:var(--accent-light);margin:0 0 8px">A · n8n 결과 (붙여넣기)</h4>
+                            <h4 id="cmpATitle" style="font-size:13px;color:var(--accent-light);margin:0 0 8px">A · n8n 원본 재현 (gpt-4o)</h4>
                             <label style="font-size:11px;color:var(--text-dim)">댓글</label>
-                            <textarea id="cmpAComment" rows="5" style="${ta};margin-bottom:8px" placeholder="예전 n8n이 만든 댓글 원고를 붙여넣으세요"></textarea>
+                            <textarea id="cmpAComment" rows="5" style="${ta};margin-bottom:8px" placeholder="‘양쪽 자동 생성’을 누르면 채워집니다 (직접 붙여넣어도 됨)"></textarea>
                             <label style="font-size:11px;color:var(--text-dim)">대댓글</label>
-                            <textarea id="cmpAReply" rows="3" style="${ta}" placeholder="n8n 대댓글 (있으면)"></textarea>
+                            <textarea id="cmpAReply" rows="3" style="${ta}"></textarea>
                         </div>
                         <div>
-                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                                <h4 style="font-size:13px;color:var(--accent-light);margin:0">B · 앱 생성 결과</h4>
-                                <button class="btn btn-sm btn-primary" id="cmpGenBtn" onclick="compareGenerateApp()">앱으로 생성</button>
-                            </div>
+                            <h4 id="cmpBTitle" style="font-size:13px;color:var(--accent-light);margin:0 0 8px">B · 앱 현재 설정</h4>
                             <label style="font-size:11px;color:var(--text-dim)">댓글</label>
-                            <textarea id="cmpBComment" rows="5" style="${ta};margin-bottom:8px" placeholder="‘앱으로 생성’을 누르면 채워집니다"></textarea>
+                            <textarea id="cmpBComment" rows="5" style="${ta};margin-bottom:8px"></textarea>
                             <label style="font-size:11px;color:var(--text-dim)">대댓글</label>
                             <textarea id="cmpBReply" rows="3" style="${ta}"></textarea>
                         </div>
-                    </div>
-                    <div style="display:flex;gap:8px;align-items:center;margin-top:14px">
-                        <button class="btn btn-secondary" id="cmpJudgeBtn" onclick="compareJudge()">AI 비교 평가</button>
-                        <span id="cmpMsg" style="font-size:12px;color:var(--text-dim)"></span>
                     </div>
                     <div id="cmpVerdict" style="margin-top:14px"></div>
                 </div>`;
             document.body.appendChild(modal);
         }
         modal.style.display = 'flex';
-        document.getElementById('cmpTitle').textContent = '영상 ID ' + _compareVideoId + ' · A에는 보유한 n8n 원고를 붙여넣고, B는 앱으로 생성해 비교하세요.';
+        document.getElementById('cmpTitle').textContent = '영상 ID ' + _compareVideoId;
         document.getElementById('cmpMsg').textContent = '';
         document.getElementById('cmpVerdict').innerHTML = '';
     }
 
-    async function compareGenerateApp() {
+    async function compareGenerateBoth() {
         const btn = document.getElementById('cmpGenBtn');
         const msg = document.getElementById('cmpMsg');
         btn.disabled = true; btn.textContent = '생성 중...';
-        msg.textContent = '앱 엔진으로 생성 중... (수 초)';
+        msg.textContent = '양쪽(gpt-4o · 앱 모델) 동시 생성 중... 30초 내외 걸립니다';
         try {
             const res = await api('/api/youtube/compare-generate', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ video_id: _compareVideoId }),
             });
             if (res && res.success) {
-                document.getElementById('cmpBComment').value = res.comment || '';
-                document.getElementById('cmpBReply').value = res.reply || '';
-                document.getElementById('cmpTitle').textContent = res.title || '';
-                msg.textContent = res.status === '관련없음'
-                    ? '※ 앱이 이 영상을 브랜드핏 부적합(관련없음)으로 판정했습니다.'
-                    : (res.error ? ('오류: ' + res.error) : '생성 완료');
+                const n = res.n8n || {}, a = res.app || {};
+                document.getElementById('cmpAComment').value = n.comment || '';
+                document.getElementById('cmpAReply').value = n.reply || '';
+                document.getElementById('cmpBComment').value = a.comment || '';
+                document.getElementById('cmpBReply').value = a.reply || '';
+                document.getElementById('cmpATitle').textContent = `A · n8n 원본 재현 (${res.n8n_model})`;
+                document.getElementById('cmpBTitle').textContent = `B · 앱 현재 설정 (${res.app_model})`;
+                if (res.title) document.getElementById('cmpTitle').textContent = res.title;
+                const flags = [];
+                if (n.status === '관련없음') flags.push('A=관련없음');
+                if (a.status === '관련없음') flags.push('B=관련없음');
+                msg.textContent = flags.length ? ('생성 완료 (' + flags.join(', ') + ')') : '생성 완료 — 이제 [AI 비교 평가]를 눌러보세요';
             } else {
                 msg.textContent = (res && res.error) || '생성 실패';
             }
         } catch (e) { msg.textContent = '서버 연결 실패'; }
-        finally { btn.disabled = false; btn.textContent = '앱으로 생성'; }
+        finally { btn.disabled = false; btn.textContent = '양쪽 자동 생성'; }
     }
 
     async function compareJudge() {

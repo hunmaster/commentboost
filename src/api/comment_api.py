@@ -121,10 +121,18 @@ def generate_comments_for_campaign():
     })
 
 
+# n8n '닥터두드리 바이럴 v2' 워크플로우의 OpenAI 노드 모델 (export JSON에서 확인 — 3노드 모두 gpt-4o)
+N8N_MODEL = "gpt-4o"
+
+
 @comment_bp.route('/api/youtube/compare-generate', methods=['POST'])
 @login_required
 def compare_generate():
-    """품질 비교용 — 영상 1건을 앱 엔진으로 새로 생성(저장 안 함). n8n 결과 대조용."""
+    """품질 비교용 — 같은 영상을 양쪽으로 자동 생성(저장 안 함).
+      A(n8n 원본 재현): 워크플로우 모델 gpt-4o
+      B(앱 현재 설정):  유저가 설정한 모델(기본 gpt-4o-mini)
+    엔진/프롬프트/페르소나/금칙어는 n8n과 100% 동일(검증) — 차이는 모델뿐.
+    """
     gate = _require_comment_feature()
     if gate:
         return gate
@@ -150,18 +158,33 @@ def compare_generate():
     if getattr(video, 'transcript', None):
         desc = (desc + "\n\n[영상 자막]\n" + video.transcript).strip()
 
-    result = comment_generator.generate(
-        keyword=campaign.keyword, title=video.title, description=desc,
-        url=video.url, brand=cfg_brand, api_key=cfg_key, model=cfg_model,
-    )
+    def _gen(model):
+        r = comment_generator.generate(
+            keyword=campaign.keyword, title=video.title, description=desc,
+            url=video.url, brand=cfg_brand, api_key=cfg_key, model=model,
+        )
+        return {
+            'comment': r.get('comment_text') or '',
+            'reply': r.get('reply_text') or '',
+            'status': r.get('status'),
+            'brand_fit': r.get('brand_fit'),
+            'error': r.get('error'),
+        }
+
+    app_model = cfg_model or comment_generator._model()
+    try:
+        n8n_side = _gen(N8N_MODEL)
+        app_side = _gen(app_model)
+    except Exception as e:
+        return jsonify({'error': f'생성 실패: {str(e)}'}), 500
+
     return jsonify({
         'success': True,
         'title': video.title,
-        'comment': result.get('comment_text') or '',
-        'reply': result.get('reply_text') or '',
-        'status': result.get('status'),
-        'brand_fit': result.get('brand_fit'),
-        'error': result.get('error'),
+        'n8n_model': N8N_MODEL,
+        'app_model': app_model,
+        'n8n': n8n_side,
+        'app': app_side,
     })
 
 
