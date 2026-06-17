@@ -39,7 +39,10 @@ try:
     KST = timezone(timedelta(hours=9))
 
     from flask import Flask, render_template, jsonify, request, redirect, url_for, send_file
-    from flask_cors import CORS
+    try:
+        from flask_cors import CORS
+    except ImportError:
+        CORS = None  # 선택 의존성 — 없으면 CORS 미적용(로컬 단일 출처/PyWebView엔 불필요)
     from flask_login import LoginManager, login_user, logout_user, login_required, current_user
     from dotenv import load_dotenv
 
@@ -101,8 +104,9 @@ else:
     _exe_root = None
     _internal = None
 
-# PyWebView 로컬 + 외부 도메인 허용
-CORS(app)
+# PyWebView 로컬 + 외부 도메인 허용 (flask_cors 미설치 시 건너뜀)
+if CORS:
+    CORS(app)
 
 app.secret_key = os.environ.get("SECRET_KEY") or hashlib.sha256(
     (platform.node() + os.path.abspath(__file__)).encode()
