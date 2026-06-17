@@ -323,6 +323,27 @@ def get_campaign_videos(campaign_id):
     return jsonify({'videos': results})
 
 
+@collect_bp.route('/api/youtube/videos/<int:video_id>/transcript', methods=['GET'])
+@login_required
+def get_video_transcript(video_id):
+    """단일 영상의 추출된 자막(스크립트) 전문 반환 (본인 소유만)."""
+    gate = _require_collect_feature()
+    if gate:
+        return gate
+    v = (db.session.query(VideoTarget)
+         .join(Campaign, VideoTarget.campaign_id == Campaign.id)
+         .filter(VideoTarget.id == video_id, Campaign.user_id == current_user.id)
+         .first())
+    if not v:
+        return jsonify({'error': '영상을 찾을 수 없습니다.'}), 404
+    return jsonify({
+        'video_id': v.video_id,
+        'title': v.title,
+        'transcript': v.transcript or '',
+        'length': len(v.transcript or ''),
+    })
+
+
 @collect_bp.route('/api/youtube/analyze-impact', methods=['POST'])
 @login_required
 def analyze_impact():
