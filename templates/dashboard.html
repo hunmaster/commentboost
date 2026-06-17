@@ -3081,7 +3081,12 @@
         const isPolling = url === '/api/status' || url === '/api/likes/pending' || url === '/api/reply/status';
         const isFast = url === '/api/accounts' || url === '/api/admin/status' || url === '/api/admin/users';
         const isSlow = url.startsWith('/api/tasks') || url.startsWith('/api/check-connections') || url.startsWith('/api/adb/');
-        const timeout = isPolling ? 5000 : (isFast ? 8000 : (isSlow ? 60000 : 15000));
+        // 영상 수집/댓글 생성/임팩트 분석 — yt-dlp·OpenAI·YouTube API 호출로 수 분 소요 가능.
+        // 비멱등(호출마다 캠페인/작업 생성)이라 재시도 금지: 재시도하면 중복 캠페인이 생김.
+        const isYoutubeJob = url.startsWith('/api/youtube/collect')
+            || url.startsWith('/api/youtube/generate-comments')
+            || url.startsWith('/api/youtube/analyze-impact');
+        const timeout = isPolling ? 5000 : (isFast ? 8000 : (isYoutubeJob ? 300000 : (isSlow ? 60000 : 15000)));
 
         for (let attempt = 0; attempt < maxRetries; attempt++) {
             try {
@@ -3099,6 +3104,8 @@
                 }
                 // 폴링은 재시도 안함 (다음 주기에 다시 호출됨)
                 if (isPolling) return null;
+                // 비멱등 작업(수집/생성/분석)은 재시도 금지 — 중복 캠페인/작업 방지
+                if (isYoutubeJob) break;
                 // 마지막 시도가 아니면 대기 후 재시도
                 if (attempt < maxRetries - 1) {
                     await new Promise(r => setTimeout(r, (attempt + 1) * 500));
