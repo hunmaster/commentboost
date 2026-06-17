@@ -23,6 +23,15 @@ def _require_comment_feature():
     return None
 
 
+def _openai_cfg(uid):
+    """유저별 OpenAI 설정(키/모델/브랜드)을 읽어 반환. 비면 .env 폴백."""
+    us = UserSettings.query.filter_by(user_id=uid).first()
+    key = (us.get('OPENAI_API_KEY') if us else None) or os.getenv('OPENAI_API_KEY')
+    model = (us.get('OPENAI_COMMENT_MODEL') if us else None) or None
+    brand = (us.get('OPENAI_COMMENT_BRAND') if us else None) or None
+    return key, model, brand
+
+
 @comment_bp.route('/api/youtube/generate-comments', methods=['POST'])
 @login_required
 def generate_comments_for_campaign():
@@ -40,10 +49,7 @@ def generate_comments_for_campaign():
 
     # 생성 설정 — 유저별 설정(설정 탭)에서 OpenAI 키/모델/브랜드를 읽어 사용.
     # 비어 있으면 generator가 환경변수(OPENAI_*)로 폴백한다.
-    us = UserSettings.query.filter_by(user_id=uid).first()
-    cfg_key = (us.get('OPENAI_API_KEY') if us else None) or os.getenv('OPENAI_API_KEY')
-    cfg_model = (us.get('OPENAI_COMMENT_MODEL') if us else None) or None
-    cfg_brand = (us.get('OPENAI_COMMENT_BRAND') if us else None) or None
+    cfg_key, cfg_model, cfg_brand = _openai_cfg(uid)
     if not cfg_key:
         return jsonify({'error': '댓글 생성을 위해 설정 탭에서 OpenAI API 키를 입력해주세요.'}), 400
 
@@ -113,6 +119,75 @@ def generate_comments_for_campaign():
         'errors': errors,
         'message': " · ".join(parts),
     })
+
+
+@comment_bp.route('/api/youtube/compare-generate', methods=['POST'])
+@login_required
+def compare_generate():
+    """품질 비교용 — 영상 1건을 앱 엔진으로 새로 생성(저장 안 함). n8n 결과 대조용."""
+    gate = _require_comment_feature()
+    if gate:
+        return gate
+    uid = current_user.id
+    data = request.json or {}
+    video_id = data.get('video_id')
+    if not video_id:
+        return jsonify({'error': '영상을 선택해주세요.'}), 400
+
+    row = (db.session.query(VideoTarget, Campaign)
+           .join(Campaign, VideoTarget.campaign_id == Campaign.id)
+           .filter(VideoTarget.id == video_id, Campaign.user_id == uid)
+           .first())
+    if not row:
+        return jsonify({'error': '영상을 찾을 수 없습니다.'}), 404
+    video, campaign = row
+
+    cfg_key, cfg_model, cfg_brand = _openai_cfg(uid)
+    if not cfg_key:
+        return jsonify({'error': '설정 탭에서 OpenAI API 키를 입력해주세요.'}), 400
+
+    desc = video.description or ""
+    if getattr(video, 'transcript', None):
+        desc = (desc + "\n\n[영상 자막]\n" + video.transcript).strip()
+
+    result = comment_generator.generate(
+        keyword=campaign.keyword, title=video.title, description=desc,
+        url=video.url, brand=cfg_brand, api_key=cfg_key, model=cfg_model,
+    )
+    return jsonify({
+        'success': True,
+        'title': video.title,
+        'comment': result.get('comment_text') or '',
+        'reply': result.get('reply_text') or '',
+        'status': result.get('status'),
+        'brand_fit': result.get('brand_fit'),
+        'error': result.get('error'),
+    })
+
+
+@comment_bp.route('/api/youtube/compare-judge', methods=['POST'])
+@login_required
+def compare_judge():
+    """품질 비교용 — A(n8n)와 B(앱) 댓글을 AI가 점수로 평가."""
+    gate = _require_comment_feature()
+    if gate:
+        return gate
+    uid = current_user.id
+    data = request.json or {}
+    title = (data.get('title') or '').strip()
+    a = {'comment': (data.get('a_comment') or ''), 'reply': (data.get('a_reply') or '')}
+    b = {'comment': (data.get('b_comment') or ''), 'reply': (data.get('b_reply') or '')}
+    if not (a['comment'] or a['reply']) or not (b['comment'] or b['reply']):
+        return jsonify({'error': 'A(n8n)·B(앱) 양쪽 원고를 모두 입력해주세요.'}), 400
+
+    cfg_key, cfg_model, _ = _openai_cfg(uid)
+    if not cfg_key:
+        return jsonify({'error': '설정 탭에서 OpenAI API 키를 입력해주세요.'}), 400
+
+    verdict = comment_generator.judge(title, a, b, api_key=cfg_key, model=cfg_model)
+    if verdict.get('error'):
+        return jsonify({'error': verdict['error']}), 500
+    return jsonify({'success': True, 'verdict': verdict})
 
 
 @comment_bp.route('/api/youtube/comments', methods=['GET'])

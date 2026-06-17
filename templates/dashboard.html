@@ -975,6 +975,7 @@
             <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">위에서 영상을 선택하면 각 영상을 분석해 <b>댓글·대댓글 원고</b>를 자동 생성합니다(브랜드핏 부적합 영상은 자동 제외). <span id="genSelectedCount" style="color:var(--blue);font-weight:600">0개 선택됨</span></div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                 <input type="text" id="genAccountLabel" placeholder="업로드 계정 라벨 (선택)" style="flex:1;min-width:160px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px">
+                <button class="btn btn-secondary" id="btnCompare" onclick="openCompareModal()" title="영상 1개를 선택하고, 예전 n8n 결과와 앱 생성 결과를 나란히 비교합니다">n8n 품질 비교</button>
                 <button class="btn btn-primary" id="btnGenComments" onclick="generateComments()">선택 영상 댓글 생성</button>
             </div>
             <div id="genMsg" style="margin-top:10px;font-size:13px"></div>
@@ -2908,6 +2909,130 @@
         document.getElementById('transcriptTitle').textContent = data.title || '자막';
         document.getElementById('transcriptMeta').textContent = `추출된 자막 ${data.length}자 (최대 1500자)`;
         document.getElementById('transcriptBody').textContent = data.transcript || '(자막 없음)';
+    }
+
+    // ─── n8n vs 앱 품질 비교 ───
+    let _compareVideoId = null;
+    function openCompareModal() {
+        const ids = getSelectedVideoIds();
+        if (ids.length !== 1) { alert('비교할 영상을 위 목록에서 정확히 1개만 선택해주세요.'); return; }
+        _compareVideoId = ids[0];
+        let modal = document.getElementById('compareModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'compareModal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10003;display:flex;justify-content:center;align-items:center';
+            modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+            const ta = 'width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;line-height:1.6;resize:vertical';
+            modal.innerHTML = `
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:22px 24px;max-width:880px;width:94%;max-height:88vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.4)">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                        <h3 style="font-size:16px;margin:0">n8n vs 앱 품질 비교</h3>
+                        <button class="btn btn-sm btn-secondary" onclick="document.getElementById('compareModal').style.display='none'">닫기</button>
+                    </div>
+                    <div id="cmpTitle" style="font-size:12px;color:var(--text-dim);margin-bottom:14px"></div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                        <div>
+                            <h4 style="font-size:13px;color:var(--accent-light);margin:0 0 8px">A · n8n 결과 (붙여넣기)</h4>
+                            <label style="font-size:11px;color:var(--text-dim)">댓글</label>
+                            <textarea id="cmpAComment" rows="5" style="${ta};margin-bottom:8px" placeholder="예전 n8n이 만든 댓글 원고를 붙여넣으세요"></textarea>
+                            <label style="font-size:11px;color:var(--text-dim)">대댓글</label>
+                            <textarea id="cmpAReply" rows="3" style="${ta}" placeholder="n8n 대댓글 (있으면)"></textarea>
+                        </div>
+                        <div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                                <h4 style="font-size:13px;color:var(--accent-light);margin:0">B · 앱 생성 결과</h4>
+                                <button class="btn btn-sm btn-primary" id="cmpGenBtn" onclick="compareGenerateApp()">앱으로 생성</button>
+                            </div>
+                            <label style="font-size:11px;color:var(--text-dim)">댓글</label>
+                            <textarea id="cmpBComment" rows="5" style="${ta};margin-bottom:8px" placeholder="‘앱으로 생성’을 누르면 채워집니다"></textarea>
+                            <label style="font-size:11px;color:var(--text-dim)">대댓글</label>
+                            <textarea id="cmpBReply" rows="3" style="${ta}"></textarea>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;margin-top:14px">
+                        <button class="btn btn-secondary" id="cmpJudgeBtn" onclick="compareJudge()">AI 비교 평가</button>
+                        <span id="cmpMsg" style="font-size:12px;color:var(--text-dim)"></span>
+                    </div>
+                    <div id="cmpVerdict" style="margin-top:14px"></div>
+                </div>`;
+            document.body.appendChild(modal);
+        }
+        modal.style.display = 'flex';
+        document.getElementById('cmpTitle').textContent = '영상 ID ' + _compareVideoId + ' · A에는 보유한 n8n 원고를 붙여넣고, B는 앱으로 생성해 비교하세요.';
+        document.getElementById('cmpMsg').textContent = '';
+        document.getElementById('cmpVerdict').innerHTML = '';
+    }
+
+    async function compareGenerateApp() {
+        const btn = document.getElementById('cmpGenBtn');
+        const msg = document.getElementById('cmpMsg');
+        btn.disabled = true; btn.textContent = '생성 중...';
+        msg.textContent = '앱 엔진으로 생성 중... (수 초)';
+        try {
+            const res = await api('/api/youtube/compare-generate', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ video_id: _compareVideoId }),
+            });
+            if (res && res.success) {
+                document.getElementById('cmpBComment').value = res.comment || '';
+                document.getElementById('cmpBReply').value = res.reply || '';
+                document.getElementById('cmpTitle').textContent = res.title || '';
+                msg.textContent = res.status === '관련없음'
+                    ? '※ 앱이 이 영상을 브랜드핏 부적합(관련없음)으로 판정했습니다.'
+                    : (res.error ? ('오류: ' + res.error) : '생성 완료');
+            } else {
+                msg.textContent = (res && res.error) || '생성 실패';
+            }
+        } catch (e) { msg.textContent = '서버 연결 실패'; }
+        finally { btn.disabled = false; btn.textContent = '앱으로 생성'; }
+    }
+
+    async function compareJudge() {
+        const btn = document.getElementById('cmpJudgeBtn');
+        const msg = document.getElementById('cmpMsg');
+        const payload = {
+            title: document.getElementById('cmpTitle').textContent || '',
+            a_comment: document.getElementById('cmpAComment').value,
+            a_reply: document.getElementById('cmpAReply').value,
+            b_comment: document.getElementById('cmpBComment').value,
+            b_reply: document.getElementById('cmpBReply').value,
+        };
+        btn.disabled = true; btn.textContent = '평가 중...'; msg.textContent = 'AI가 두 결과를 비교 평가 중...';
+        try {
+            const res = await api('/api/youtube/compare-judge', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload),
+            });
+            if (res && res.success) { renderVerdict(res.verdict); msg.textContent = ''; }
+            else { msg.textContent = (res && res.error) || '평가 실패'; }
+        } catch (e) { msg.textContent = '서버 연결 실패'; }
+        finally { btn.disabled = false; btn.textContent = 'AI 비교 평가'; }
+    }
+
+    function renderVerdict(v) {
+        if (!v) return;
+        const a = v.a || {}, b = v.b || {};
+        const row = (label, key) => `<tr><td style="padding:4px 8px">${label}</td>
+            <td style="padding:4px 8px;text-align:center">${a[key] != null ? a[key] : '-'}</td>
+            <td style="padding:4px 8px;text-align:center">${b[key] != null ? b[key] : '-'}</td></tr>`;
+        const winColor = v.winner === 'B' ? 'var(--green)' : (v.winner === 'A' ? 'var(--yellow)' : 'var(--text-dim)');
+        const winLabel = v.winner === 'A' ? 'A (n8n) 우세' : (v.winner === 'B' ? 'B (앱) 우세' : '무승부');
+        document.getElementById('cmpVerdict').innerHTML = `
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px">
+                <div style="font-weight:600;margin-bottom:8px;color:${winColor}">판정: ${winLabel}</div>
+                <table style="width:100%;font-size:12px;border-collapse:collapse">
+                    <thead><tr style="color:var(--text-dim)"><th style="text-align:left;padding:4px 8px">항목</th><th style="padding:4px 8px">A·n8n</th><th style="padding:4px 8px">B·앱</th></tr></thead>
+                    <tbody>
+                        ${row('자연스러움','naturalness')}
+                        ${row('공감/진정성','empathy')}
+                        ${row('브랜드 자연스러움','brand_fit')}
+                        ${row('참여 유도','engagement')}
+                        <tr style="font-weight:600;border-top:1px solid var(--border)">${row('총점','total')}</tr>
+                    </tbody>
+                </table>
+                <div style="font-size:12px;color:var(--text-dim);margin-top:10px;line-height:1.6">${escapeHtml(v.reason || '')}</div>
+            </div>`;
     }
 
     async function analyzeImpact() {

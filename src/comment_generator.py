@@ -142,6 +142,38 @@ def _parse_analysis(text):
         return {}
 
 
+def judge(title, a, b, api_key=None, model=None):
+    """두 댓글 세트(A=n8n, B=앱)를 공정하게 비교 평가. 점수 dict 반환.
+
+    a/b: {"comment": str, "reply": str}
+    반환: {a:{naturalness,empathy,brand_fit,engagement,total}, b:{...}, winner, reason}
+          실패 시 {"error": "..."}
+    """
+    system = ("너는 한국어 유튜브 댓글 마케팅 품질 평가자다. 두 후보(A, B)를 공정하게 비교하고 "
+              "오직 JSON만 출력한다. 설명·코드블록 금지.")
+    user = (
+        f"영상 제목: {title}\n\n"
+        f"[A 후보]\n댓글: {a.get('comment','')}\n대댓글: {a.get('reply','')}\n\n"
+        f"[B 후보]\n댓글: {b.get('comment','')}\n대댓글: {b.get('reply','')}\n\n"
+        "각 후보를 1~10 정수로 평가:\n"
+        "- naturalness(사람이 쓴 듯 자연스러움)\n"
+        "- empathy(공감/진정성)\n"
+        "- brand_fit(브랜드 노출이 거슬리지 않고 자연스러운가)\n"
+        "- engagement(참여·호기심 유도)\n"
+        'JSON 형식: {"a":{"naturalness":0,"empathy":0,"brand_fit":0,"engagement":0,"total":0},'
+        '"b":{"naturalness":0,"empathy":0,"brand_fit":0,"engagement":0,"total":0},'
+        '"winner":"A|B|무승부","reason":"2~3문장 한국어 근거"}'
+    )
+    try:
+        raw = _chat(system, user, 0.2, 600, api_key=api_key, model=model)
+    except Exception as e:
+        return {"error": str(e)}
+    parsed = _parse_analysis(raw)
+    if not parsed:
+        return {"error": "평가 응답을 해석하지 못했습니다.", "raw": raw[:300]}
+    return parsed
+
+
 def generate(keyword, title, description, url, brand=None, api_key=None, model=None, max_comment_attempts=2):
     """영상 1건 → 댓글/대댓글 생성.
 
