@@ -3,7 +3,9 @@ YouTube Data Collection API (Phase 1)
 """
 from io import BytesIO
 import base64
+import json
 import urllib.parse
+import urllib.request
 import yt_dlp
 from flask import Blueprint, jsonify, request, send_file
 from flask_login import login_required, current_user
@@ -11,6 +13,62 @@ from src.models import db, Campaign, VideoTarget, CommentTask
 from src.license_client import license_client
 
 collect_bp = Blueprint('collect_api', __name__)
+
+# 자막 추출 설정
+_TRANSCRIPT_LANGS = ('ko', 'en')
+_TRANSCRIPT_MAX_CHARS = 1500  # 분석 프롬프트 비용 절감 위해 평문 길이 제한
+
+
+def _download_caption(url):
+    """자막 트랙 URL을 받아 평문으로. json3 포맷 우선 파싱, 실패 시 ''."""
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            raw = resp.read().decode('utf-8', 'ignore')
+    except Exception:
+        return ''
+    # json3: {"events":[{"segs":[{"utf8":"..."}]}]}
+    try:
+        data = json.loads(raw)
+        parts = []
+        for ev in data.get('events', []):
+            for seg in (ev.get('segs') or []):
+                t = seg.get('utf8', '')
+                if t and t != '\n':
+                    parts.append(t)
+        text = ''.join(parts).strip()
+        if text:
+            return text
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        pass
+    return ''
+
+
+def _fetch_transcript(video_id):
+    """단일 영상의 자막(수동 우선, 없으면 자동) 평문. 실패 시 ''. 느린 작업."""
+    opts = {'quiet': True, 'no_warnings': True, 'skip_download': True, 'socket_timeout': 15}
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+    except Exception:
+        return ''
+    for src in ((info or {}).get('subtitles') or {}, (info or {}).get('automatic_captions') or {}):
+        for lang in _TRANSCRIPT_LANGS:
+            tracks = src.get(lang)
+            if not tracks:
+                continue
+            url = next((t.get('url') for t in tracks if t.get('ext') == 'json3'), None)
+            if not url:
+                # json3 미제공 시 fmt 파라미터로 강제 요청
+                base = tracks[0].get('url')
+                if base:
+                    url = base + ('&' if '?' in base else '?') + 'fmt=json3'
+            if not url:
+                continue
+            text = _download_caption(url)
+            if text:
+                return text[:_TRANSCRIPT_MAX_CHARS]
+    return ''
 
 # 영상 수집은 Agency 이상 전용 기능
 COLLECT_FEATURE = "youtube_collect"
@@ -60,6 +118,7 @@ def start_collect():
     video_type = (data.get('video_type') or 'all')
     sort_by = (data.get('sort_by') or 'relevance')
     period = (data.get('period') or 'all')
+    include_transcript = bool(data.get('include_transcript'))  # 자막 추출(느림)
 
     if not keyword:
         return jsonify({'error': '키워드가 필요합니다.'}), 400
@@ -130,6 +189,7 @@ def start_collect():
             title = (entry.get('title') or '(제목 없음)')[:300]
             url = entry.get('url') or f"https://www.youtube.com/watch?v={video_id}"
             description = entry.get('description') or ''
+            transcript = _fetch_transcript(video_id) if include_transcript else None
 
             db.session.add(VideoTarget(
                 campaign_id=campaign.id,
@@ -137,6 +197,7 @@ def start_collect():
                 title=title,
                 url=url[:300],
                 description=description,
+                transcript=transcript,
             ))
             videos_collected += 1
 
@@ -233,7 +294,7 @@ def export_data():
     ws = wb.active
     ws.title = "수집·생성"
     ws.append(['캠페인', '키워드', '영상 제목', '영상 URL', 'video_id',
-               '댓글', '대댓글', '상태', '결과 URL', '수집일시'])
+               '자막', '댓글', '대댓글', '상태', '결과 URL', '수집일시'])
     for video, campaign in rows:
         task = (CommentTask.query.filter_by(video_id=video.id)
                 .order_by(CommentTask.created_at.desc()).first())
@@ -243,6 +304,7 @@ def export_data():
             video.title,
             video.url,
             video.video_id,
+            (video.transcript or ''),
             (task.generated_text if task else ''),
             (task.reply_text if task else ''),
             (task.status if task else ''),

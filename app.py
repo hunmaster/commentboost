@@ -396,6 +396,11 @@ with app.app_context():
                 CREATE INDEX ix_videos_video_id ON videos (video_id);
                 """
             )
+        # videos: transcript 컬럼 추가 (선택 추출한 자막)
+        _cursor.execute("PRAGMA table_info(videos)")
+        _vid_cols = {row[1] for row in _cursor.fetchall()}
+        if _vid_cols and "transcript" not in _vid_cols:
+            _cursor.execute("ALTER TABLE videos ADD COLUMN transcript TEXT")
         _conn.commit()
         _conn.close()
     # 새 테이블도 생성 (youtube_accounts, comment_tracking, user_settings)

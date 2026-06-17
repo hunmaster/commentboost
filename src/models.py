@@ -377,6 +377,7 @@ class VideoTarget(db.Model):
     title = db.Column(db.String(300), nullable=False)
     url = db.Column(db.String(300), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    transcript = db.Column(db.Text, nullable=True)  # 선택 추출한 자막(스크립트) 평문
     collected_at = db.Column(db.DateTime, default=_now_kst)
     
     comments = db.relationship('CommentTask', backref='video', lazy=True, cascade="all, delete-orphan")

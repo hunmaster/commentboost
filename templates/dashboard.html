@@ -925,6 +925,10 @@
                         <option value="year">올해</option>
                     </select>
                 </div>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);white-space:nowrap" title="영상 자막을 함께 추출합니다. 정확도가 올라가지만 수집이 느려집니다.">
+                    <input type="checkbox" id="collectTranscript" style="width:auto">
+                    자막 추출 <span style="color:var(--yellow)">(느림)</span>
+                </label>
                 <button class="btn btn-primary" id="btnCollect" onclick="runCollect()">수집 시작</button>
             </div>
             <div id="collectMsg" style="margin-top:10px;font-size:13px"></div>
@@ -2797,15 +2801,18 @@
         const videoType = (document.getElementById('collectType') || {}).value || 'all';
         const sortBy = (document.getElementById('collectSort') || {}).value || 'relevance';
         const period = (document.getElementById('collectPeriod') || {}).value || 'all';
+        const includeTranscript = !!(document.getElementById('collectTranscript') || {}).checked;
         const msg = document.getElementById('collectMsg');
         const btn = document.getElementById('btnCollect');
         if (!kw) { msg.innerHTML = '<span style="color:var(--red)">키워드를 입력하세요.</span>'; return; }
         btn.disabled = true; btn.textContent = '수집 중...';
-        msg.innerHTML = '<span style="color:var(--text-dim)">YouTube에서 영상을 검색하는 중...</span>';
+        msg.innerHTML = includeTranscript
+            ? '<span style="color:var(--text-dim)">영상 검색 + 자막 추출 중... (시간이 걸릴 수 있어요)</span>'
+            : '<span style="color:var(--text-dim)">YouTube에서 영상을 검색하는 중...</span>';
         try {
             const res = await api('/api/youtube/collect', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ keyword: kw, max_videos: max, video_type: videoType, sort_by: sortBy, period: period }),
+                body: JSON.stringify({ keyword: kw, max_videos: max, video_type: videoType, sort_by: sortBy, period: period, include_transcript: includeTranscript }),
             });
             if (res && res.success) {
                 msg.innerHTML = `<span style="color:var(--green)">${res.message}</span>`;

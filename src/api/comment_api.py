@@ -67,10 +67,15 @@ def generate_comments_for_campaign():
         # 재시도 시 이전 '실패' 행은 정리(중복 방지)
         CommentTask.query.filter_by(video_id=video.id, status='실패').delete()
 
+        # 자막이 있으면 영상 분석에 함께 제공 (더 정확한 댓글)
+        desc = video.description or ""
+        if getattr(video, 'transcript', None):
+            desc = (desc + "\n\n[영상 자막]\n" + video.transcript).strip()
+
         result = comment_generator.generate(
             keyword=campaign.keyword,
             title=video.title,
-            description=video.description or "",
+            description=desc,
             url=video.url,
             brand=cfg_brand,
             api_key=cfg_key,
