@@ -5,6 +5,9 @@ from io import BytesIO
 import base64
 import json
 import os
+import random
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import yt_dlp
@@ -20,14 +23,59 @@ collect_bp = Blueprint('collect_api', __name__)
 _TRANSCRIPT_LANGS = ('ko', 'en')
 _TRANSCRIPT_MAX_CHARS = 1500  # 분석 프롬프트 비용 절감 위해 평문 길이 제한
 
+# ── 봇 차단 회피 ──────────────────────────────────────────────────────────
+# 실제 브라우저처럼 보이도록 UA·헤더를 쓰고, 영상 간 요청을 사람처럼 띄운다.
+# (연속 고속 스크래핑은 YouTube가 봇으로 탐지해 일시 차단[HTTP 429/IP 제한]할 수 있음)
+_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+_HTTP_HEADERS = {
+    'User-Agent': _UA,
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+}
+# 자막 추출 시 영상 간 지연(초) — 랜덤 지터로 패턴화 방지
+_TRANSCRIPT_MIN_DELAY = 1.5
+_TRANSCRIPT_MAX_DELAY = 4.0
+
+
+def _ydl_opts(extra=None):
+    """봇 탐지 회피용 공통 yt-dlp 옵션(실제 UA·내부 요청 스로틀·재시도)."""
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'skip_download': True,
+        'socket_timeout': 15,
+        'http_headers': dict(_HTTP_HEADERS),
+        'sleep_interval_requests': 1,   # yt-dlp 내부 요청 간 최소 지연(초)
+        'retries': 2,
+        'extractor_retries': 2,
+    }
+    if extra:
+        opts.update(extra)
+    return opts
+
+
+def _polite_delay():
+    """영상 간 사람처럼 보이는 랜덤 지연."""
+    time.sleep(random.uniform(_TRANSCRIPT_MIN_DELAY, _TRANSCRIPT_MAX_DELAY))
+
 
 def _download_caption(url):
-    """자막 트랙 URL을 받아 평문으로. json3 포맷 우선 파싱, 실패 시 ''."""
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            raw = resp.read().decode('utf-8', 'ignore')
-    except Exception:
+    """자막 트랙 URL을 받아 평문으로. json3 포맷 우선 파싱. 429는 한 번 백오프 후 포기."""
+    raw = None
+    for attempt in range(2):
+        try:
+            req = urllib.request.Request(url, headers=dict(_HTTP_HEADERS))
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                raw = resp.read().decode('utf-8', 'ignore')
+            break
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt == 0:
+                time.sleep(random.uniform(3.0, 6.0))  # 레이트리밋 — 잠시 쉬고 1회 재시도
+                continue
+            return ''
+        except Exception:
+            return ''
+    if raw is None:
         return ''
     # json3: {"events":[{"segs":[{"utf8":"..."}]}]}
     try:
@@ -48,9 +96,8 @@ def _download_caption(url):
 
 def _fetch_transcript(video_id):
     """단일 영상의 자막(수동 우선, 없으면 자동) 평문. 실패 시 ''. 느린 작업."""
-    opts = {'quiet': True, 'no_warnings': True, 'skip_download': True, 'socket_timeout': 15}
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with yt_dlp.YoutubeDL(_ydl_opts()) as ydl:
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
     except Exception:
         return ''
@@ -133,14 +180,7 @@ def start_collect():
     # 2. 길이필터가 있으면 더 많이 받아 거른다(오버페치). 정렬·기간은 YouTube sp 필터로.
     over = 8 if video_type == 'shorts' else (3 if video_type == 'long' else 1)
     fetch_n = min(max_videos * over, 50)
-    ydl_opts = {
-        'extract_flat': True,
-        'quiet': True,
-        'no_warnings': True,
-        'skip_download': True,
-        'socket_timeout': 15,
-        'playlistend': fetch_n,
-    }
+    ydl_opts = _ydl_opts({'extract_flat': True, 'playlistend': fetch_n})
     if sort_by == 'views' or period in _PERIOD_SP:
         sp = _build_sp(sort_by, period)
         query = ("https://www.youtube.com/results?search_query="
@@ -191,7 +231,12 @@ def start_collect():
             title = (entry.get('title') or '(제목 없음)')[:300]
             url = entry.get('url') or f"https://www.youtube.com/watch?v={video_id}"
             description = entry.get('description') or ''
-            transcript = _fetch_transcript(video_id) if include_transcript else None
+            transcript = None
+            if include_transcript:
+                # 첫 영상 제외, 영상 간 사람처럼 지연 → 봇 탐지·차단 회피
+                if videos_collected > 0:
+                    _polite_delay()
+                transcript = _fetch_transcript(video_id)
 
             db.session.add(VideoTarget(
                 campaign_id=campaign.id,
