@@ -6,7 +6,7 @@ AI 댓글/대댓글 생성 API (Phase 2)
 import os
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
-from src.models import db, Campaign, VideoTarget, CommentTask, UserSettings
+from src.models import db, Campaign, VideoTarget, CommentTask, UserSettings, AccountType
 from src.license_client import license_client
 from src import comment_generator
 
@@ -59,6 +59,23 @@ def generate_comments_for_campaign():
             .filter(VideoTarget.id.in_(video_ids), Campaign.user_id == uid)
             .all())
 
+    # 계정 풀 — account_label(콤마 구분 가능) 우선, 없으면 유저 계정유형(AccountType).
+    # 동일 채널의 여러 영상은 채널별 라운드로빈으로 '서로 다른 계정'에 배정(탐지 위험↓).
+    pool = [s.strip() for s in str(account_label).split(',') if s.strip()] if account_label else []
+    if not pool:
+        pool = [a.name for a in AccountType.query.filter_by(user_id=uid).all() if a.name]
+    _seen = set()
+    pool = [x for x in pool if not (x in _seen or _seen.add(x))]  # 중복 제거(순서 유지)
+    chan_counter = {}
+
+    def _assign_account(video):
+        if not pool:
+            return account_label
+        ch = video.channel_id or f"v{video.id}"  # 채널 미상이면 영상 단위로 분리(겹침 방지)
+        idx = chan_counter.get(ch, 0)
+        chan_counter[ch] = idx + 1
+        return pool[idx % len(pool)]
+
     generated = irrelevant = skipped = 0
     errors = []
     for video, campaign in rows:
@@ -90,7 +107,7 @@ def generate_comments_for_campaign():
         status = result.get('status', '실패')
         db.session.add(CommentTask(
             video_id=video.id,
-            account_label=account_label,
+            account_label=_assign_account(video),
             generated_text=result.get('comment_text') or '',
             reply_text=result.get('reply_text') or '',
             status=status,

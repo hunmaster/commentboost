@@ -379,6 +379,8 @@ class VideoTarget(db.Model):
     title = db.Column(db.String(300), nullable=False)
     url = db.Column(db.String(300), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    channel_id = db.Column(db.String(50), nullable=True, index=True)  # 동일 채널 분산(다른 계정 배정)용
+    channel_title = db.Column(db.String(200), nullable=True)
     transcript = db.Column(db.Text, nullable=True)  # 선택 추출한 자막(스크립트) 평문
     impact_score = db.Column(db.Float, nullable=True)   # 임팩트 스코어(0~100)
     impact_tier = db.Column(db.String(30), nullable=True)  # 우선순위 티어(🔴/🟡/🟢/⚪)

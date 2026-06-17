@@ -407,6 +407,10 @@ with app.app_context():
             _cursor.execute("ALTER TABLE videos ADD COLUMN impact_tier VARCHAR(30)")
         if _vid_cols and "impact_data" not in _vid_cols:
             _cursor.execute("ALTER TABLE videos ADD COLUMN impact_data TEXT")
+        if _vid_cols and "channel_id" not in _vid_cols:
+            _cursor.execute("ALTER TABLE videos ADD COLUMN channel_id VARCHAR(50)")
+        if _vid_cols and "channel_title" not in _vid_cols:
+            _cursor.execute("ALTER TABLE videos ADD COLUMN channel_title VARCHAR(200)")
         _conn.commit()
         _conn.close()
     # 새 테이블도 생성 (youtube_accounts, comment_tracking, user_settings)

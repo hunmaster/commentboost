@@ -245,6 +245,8 @@ def start_collect():
                 url=url[:300],
                 description=description,
                 transcript=transcript,
+                channel_id=(entry.get('channel_id') or entry.get('uploader_id') or None),
+                channel_title=((entry.get('channel') or entry.get('uploader') or '')[:200] or None),
             ))
             videos_collected += 1
 
@@ -316,10 +318,12 @@ def get_campaign_videos(campaign_id):
             'has_transcript': bool(v.transcript),
             'impact_score': v.impact_score,
             'impact_tier': v.impact_tier,
+            'channel_title': v.channel_title or '',
+            'excluded': bool(v.impact_tier and '제외' in v.impact_tier),
             'collected_at': v.collected_at.isoformat()
         })
-    # 임팩트 점수 높은 순 → 미분석(None)은 뒤로
-    results.sort(key=lambda r: (r['impact_score'] is None, -(r['impact_score'] or 0)))
+    # 제외(댓글3↓) 맨 뒤 → 임팩트 점수 높은 순 → 미분석(None)은 그 뒤
+    results.sort(key=lambda r: (r['excluded'], r['impact_score'] is None, -(r['impact_score'] or 0)))
     return jsonify({'videos': results})
 
 
@@ -387,20 +391,31 @@ def analyze_impact():
         return jsonify({'error': f'임팩트 분석 실패: {str(e)}'}), 500
 
     updated = 0
+    excluded = 0
     for res in analyzed:
         for r in by_yt.get(res['video_id'], []):
             r.impact_score = res.get('impact_score')
             r.impact_tier = res.get('tier')
             r.impact_data = json.dumps(res, ensure_ascii=False)
+            if res.get('channel_id'):
+                r.channel_id = res['channel_id']
+            if res.get('channel_title'):
+                r.channel_title = res['channel_title']
             updated += 1
+        if res.get('excluded'):
+            excluded += 1
     db.session.commit()
 
+    msg = f'{updated}개 영상의 임팩트 점수를 산출했습니다.'
+    if excluded:
+        msg += f' (댓글 3개 이하 {excluded}개는 제외 표시)'
     return jsonify({
         'success': True,
         'analyzed': len(analyzed),
         'updated': updated,
+        'excluded': excluded,
         'results': analyzed,
-        'message': f'{updated}개 영상의 임팩트 점수를 산출했습니다.'
+        'message': msg
     })
 
 

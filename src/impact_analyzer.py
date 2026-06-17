@@ -25,6 +25,9 @@ RED_MOMENTUM_MIN = 0.5  # 🔴 게이트: 최근 7일 일평균 댓글 ≥ 0.5
 CHANNEL_AVG_VIDEO_COUNT = 20  # 채널 평균 산출 시 최근 영상 수
 BATCH_SIZE = 50
 
+MIN_COMMENTS = 3       # 댓글 이하(≤) 영상은 리스트 제외 (묻힘·대댓글 유도 약함)
+EXCLUDE_TIER = '⚪ 제외 (댓글 3↓)'
+
 
 def age_threshold(elapsed_days):
     for max_days, vph in AGE_THRESHOLDS:
@@ -249,10 +252,15 @@ def analyze(video_ids, api_key, enable_timeline=True, enable_channel=True):
                 'channel_multiplier': channel_multiplier,
                 'elapsed_hours': elapsed_hours, 'video_type': video_type,
             })
-            tier = classify_by_score(score, comment_momentum)
+            # 댓글 ≤3 영상은 리스트 제외(점수와 무관하게 우선순위에서 뺀다)
+            excluded = comment_count <= MIN_COMMENTS
+            tier = EXCLUDE_TIER if excluded else classify_by_score(score, comment_momentum)
 
             results.append({
                 'video_id': vid,
+                'channel_id': channel_id or '',
+                'channel_title': (snippet.get('channelTitle') or ''),
+                'excluded': excluded,
                 'view_count': view_count,
                 'like_count': like_count,
                 'comment_count': comment_count,
