@@ -1,7 +1,10 @@
 """
-Claude AI 기반 댓글 생성 API (Phase 2)
+AI 댓글 생성 API (Phase 2)
+- 기본: n8n webhook(N8N_COMMENT_WEBHOOK_URL) 경유로 생성 (워크플로우 안에서 모델 선택, 예: OpenAI gpt-4o-mini)
+- webhook 미설정 시: Claude(Haiku)로 직접 생성 폴백
 """
 import os
+import requests
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 import anthropic
@@ -9,6 +12,42 @@ from src.models import db, Campaign, VideoTarget, CommentTask
 from src.license_client import license_client
 
 comment_bp = Blueprint('comment_api', __name__)
+
+
+def _generate_via_n8n(webhook_url, prompt_text, video_title, video_description):
+    """n8n webhook으로 생성 요청 → 댓글 텍스트 반환.
+    n8n 'Respond to Webhook' 노드가 {"comment": "..."} 형태로 주는 것을 권장하며,
+    text/output/content/message.content 및 평문 응답도 폭넓게 파싱한다."""
+    resp = requests.post(webhook_url, json={
+        "prompt": prompt_text,
+        "video_title": video_title,
+        "video_description": (video_description or "")[:300],
+    }, timeout=60)
+    resp.raise_for_status()
+    try:
+        data = resp.json()
+    except ValueError:
+        return resp.text.strip()
+    if isinstance(data, list) and data:
+        data = data[0]
+    if isinstance(data, dict):
+        for key in ("comment", "text", "output", "content"):
+            val = data.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+        # OpenAI 노드 흔한 형태: {"message": {"content": "..."}}
+        msg = data.get("message")
+        if isinstance(msg, dict) and isinstance(msg.get("content"), str):
+            return msg["content"].strip()
+    return str(data).strip()
+
+
+def generate_comment(prompt_text, video_title, video_description):
+    """댓글 생성 디스패처: n8n webhook 설정 시 그쪽으로, 없으면 Claude 직접."""
+    webhook_url = os.getenv("N8N_COMMENT_WEBHOOK_URL", "").strip()
+    if webhook_url:
+        return _generate_via_n8n(webhook_url, prompt_text, video_title, video_description)
+    return generate_claude_comment(prompt_text, video_title, video_description)
 
 # 댓글 생성은 영상 수집과 동일하게 Agency 이상 전용
 COMMENT_FEATURE = "youtube_collect"
@@ -95,7 +134,7 @@ def generate_comments_for_campaign():
             continue
 
         try:
-            generated_text = generate_claude_comment(prompt_text, video.title, video.description or "")
+            generated_text = generate_comment(prompt_text, video.title, video.description or "")
 
             new_task = CommentTask(
                 video_id=video.id,
