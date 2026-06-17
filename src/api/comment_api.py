@@ -39,9 +39,11 @@ def generate_claude_comment(prompt_text, video_title, video_description):
 
 [사용자 요청 프롬프트]: {prompt_text}
 """
+    # 다수 사용자가 쓰고 비용을 우리가 부담하므로 최저가 모델(Haiku) 사용.
+    # 짧은 댓글 생성엔 품질 충분 — 입력 $1/출력 $5 (Sonnet의 약 1/3).
     response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=300,
+        model="claude-haiku-4-5",
+        max_tokens=256,
         temperature=0.8,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}]
