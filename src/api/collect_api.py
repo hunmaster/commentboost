@@ -173,7 +173,10 @@ def export_data():
     gate = _require_collect_feature()
     if gate:
         return gate
-    import openpyxl
+    try:
+        import openpyxl
+    except ImportError:
+        return jsonify({'error': '엑셀 내보내기 모듈(openpyxl)이 설치되지 않았습니다. pip install openpyxl'}), 500
 
     uid = current_user.id
     rows = (db.session.query(VideoTarget, Campaign)
