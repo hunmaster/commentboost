@@ -396,11 +396,17 @@ with app.app_context():
                 CREATE INDEX ix_videos_video_id ON videos (video_id);
                 """
             )
-        # videos: transcript 컬럼 추가 (선택 추출한 자막)
+        # videos: transcript/impact 컬럼 추가 (선택 추출 자막 · 임팩트 분석)
         _cursor.execute("PRAGMA table_info(videos)")
         _vid_cols = {row[1] for row in _cursor.fetchall()}
         if _vid_cols and "transcript" not in _vid_cols:
             _cursor.execute("ALTER TABLE videos ADD COLUMN transcript TEXT")
+        if _vid_cols and "impact_score" not in _vid_cols:
+            _cursor.execute("ALTER TABLE videos ADD COLUMN impact_score FLOAT")
+        if _vid_cols and "impact_tier" not in _vid_cols:
+            _cursor.execute("ALTER TABLE videos ADD COLUMN impact_tier VARCHAR(30)")
+        if _vid_cols and "impact_data" not in _vid_cols:
+            _cursor.execute("ALTER TABLE videos ADD COLUMN impact_data TEXT")
         _conn.commit()
         _conn.close()
     # 새 테이블도 생성 (youtube_accounts, comment_tracking, user_settings)
@@ -2431,6 +2437,7 @@ def api_get_settings():
         "OPENAI_API_KEY": _mask_key(s.get("OPENAI_API_KEY", "")),
         "OPENAI_COMMENT_MODEL": s.get("OPENAI_COMMENT_MODEL", "gpt-4o-mini"),
         "OPENAI_COMMENT_BRAND": s.get("OPENAI_COMMENT_BRAND", ""),
+        "YOUTUBE_API_KEY": _mask_key(s.get("YOUTUBE_API_KEY", "")),
     })
 
 
@@ -2453,6 +2460,7 @@ def api_save_settings():
             "ADB_AUTO_ETHERNET", "ADB_ETHERNET_NAME",
             "LIKE_CREDIT_THRESHOLD", "LIKE_CREDIT_AUTO_ALERT",
             "OPENAI_API_KEY", "OPENAI_COMMENT_MODEL", "OPENAI_COMMENT_BRAND",
+            "YOUTUBE_API_KEY",
         }
         # Owner 전용 글로벌 설정 (.env에도 저장)
         owner_keys = {"SMM_API_KEY", "SMM_ENABLED", "SMM_LIKE_SERVICE_ID"}

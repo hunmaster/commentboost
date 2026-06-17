@@ -4,13 +4,15 @@ YouTube Data Collection API (Phase 1)
 from io import BytesIO
 import base64
 import json
+import os
 import urllib.parse
 import urllib.request
 import yt_dlp
 from flask import Blueprint, jsonify, request, send_file
 from flask_login import login_required, current_user
-from src.models import db, Campaign, VideoTarget, CommentTask
+from src.models import db, Campaign, VideoTarget, CommentTask, UserSettings
 from src.license_client import license_client
+from src import impact_analyzer
 
 collect_bp = Blueprint('collect_api', __name__)
 
@@ -266,9 +268,74 @@ def get_campaign_videos(campaign_id):
             'title': v.title,
             'url': v.url,
             'description': v.description[:100] + '...' if v.description else '',
+            'has_transcript': bool(v.transcript),
+            'impact_score': v.impact_score,
+            'impact_tier': v.impact_tier,
             'collected_at': v.collected_at.isoformat()
         })
+    # 임팩트 점수 높은 순 → 미분석(None)은 뒤로
+    results.sort(key=lambda r: (r['impact_score'] is None, -(r['impact_score'] or 0)))
     return jsonify({'videos': results})
+
+
+@collect_bp.route('/api/youtube/analyze-impact', methods=['POST'])
+@login_required
+def analyze_impact():
+    """선택 영상(또는 캠페인 전체)에 임팩트 스코어/우선순위를 산출·저장."""
+    gate = _require_collect_feature()
+    if gate:
+        return gate
+    uid = current_user.id
+    data = request.json or {}
+    video_ids = data.get('video_ids') or []
+    campaign_id = data.get('campaign_id')
+
+    # YouTube Data API 키 (유저 설정 → .env 폴백)
+    us = UserSettings.query.filter_by(user_id=uid).first()
+    api_key = (us.get('YOUTUBE_API_KEY') if us else None) or os.getenv('YOUTUBE_API_KEY')
+    if not api_key:
+        return jsonify({'error': '임팩트 분석을 위해 설정 탭에서 YouTube Data API 키를 입력해주세요.'}), 400
+
+    # 대상 영상: video_ids 우선, 없으면 campaign_id 전체 (본인 소유만)
+    q = (db.session.query(VideoTarget)
+         .join(Campaign, VideoTarget.campaign_id == Campaign.id)
+         .filter(Campaign.user_id == uid))
+    if video_ids:
+        q = q.filter(VideoTarget.id.in_(video_ids))
+    elif campaign_id:
+        q = q.filter(VideoTarget.campaign_id == campaign_id)
+    else:
+        return jsonify({'error': '분석할 영상을 선택해주세요.'}), 400
+    rows = q.all()
+    if not rows:
+        return jsonify({'error': '대상 영상이 없습니다.'}), 404
+
+    # video_id(유튜브 11자) → 우리 row 매핑 (동일 영상 중복 대비 리스트)
+    by_yt = {}
+    for r in rows:
+        by_yt.setdefault(r.video_id, []).append(r)
+
+    try:
+        analyzed = impact_analyzer.analyze(list(by_yt.keys()), api_key)
+    except Exception as e:
+        return jsonify({'error': f'임팩트 분석 실패: {str(e)}'}), 500
+
+    updated = 0
+    for res in analyzed:
+        for r in by_yt.get(res['video_id'], []):
+            r.impact_score = res.get('impact_score')
+            r.impact_tier = res.get('tier')
+            r.impact_data = json.dumps(res, ensure_ascii=False)
+            updated += 1
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'analyzed': len(analyzed),
+        'updated': updated,
+        'results': analyzed,
+        'message': f'{updated}개 영상의 임팩트 점수를 산출했습니다.'
+    })
 
 
 @collect_bp.route('/api/youtube/export', methods=['GET'])
@@ -294,7 +361,7 @@ def export_data():
     ws = wb.active
     ws.title = "수집·생성"
     ws.append(['캠페인', '키워드', '영상 제목', '영상 URL', 'video_id',
-               '자막', '댓글', '대댓글', '상태', '결과 URL', '수집일시'])
+               '임팩트점수', '우선순위', '자막', '댓글', '대댓글', '상태', '결과 URL', '수집일시'])
     for video, campaign in rows:
         task = (CommentTask.query.filter_by(video_id=video.id)
                 .order_by(CommentTask.created_at.desc()).first())
@@ -304,6 +371,8 @@ def export_data():
             video.title,
             video.url,
             video.video_id,
+            (video.impact_score if video.impact_score is not None else ''),
+            (video.impact_tier or ''),
             (video.transcript or ''),
             (task.generated_text if task else ''),
             (task.reply_text if task else ''),

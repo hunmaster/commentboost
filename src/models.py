@@ -166,6 +166,8 @@ class UserSettings(db.Model):
         "OPENAI_API_KEY": "",
         "OPENAI_COMMENT_MODEL": "gpt-4o-mini",
         "OPENAI_COMMENT_BRAND": "",
+        # 임팩트 분석(YouTube Data API v3)
+        "YOUTUBE_API_KEY": "",
     }
 
     def get_settings(self):
@@ -378,6 +380,9 @@ class VideoTarget(db.Model):
     url = db.Column(db.String(300), nullable=False)
     description = db.Column(db.Text, nullable=True)
     transcript = db.Column(db.Text, nullable=True)  # 선택 추출한 자막(스크립트) 평문
+    impact_score = db.Column(db.Float, nullable=True)   # 임팩트 스코어(0~100)
+    impact_tier = db.Column(db.String(30), nullable=True)  # 우선순위 티어(🔴/🟡/🟢/⚪)
+    impact_data = db.Column(db.Text, nullable=True)     # 임팩트 지표 JSON
     collected_at = db.Column(db.DateTime, default=_now_kst)
     
     comments = db.relationship('CommentTask', backref='video', lazy=True, cascade="all, delete-orphan")

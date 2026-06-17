@@ -955,10 +955,13 @@
             <div class="table-wrap">
                 <div class="table-title">
                     <span id="videoListTitle">영상 목록</span>
-                    <label style="font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="videoSelectAll" onchange="toggleVideoSelectAll(this)"> 전체 선택</label>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <button class="btn btn-sm btn-secondary" id="btnAnalyzeImpact" onclick="analyzeImpact()" title="YouTube Data API로 임팩트 점수·우선순위를 산출합니다. 선택 영상만, 없으면 전체.">임팩트 분석</button>
+                        <label style="font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="videoSelectAll" onchange="toggleVideoSelectAll(this)"> 전체 선택</label>
+                    </div>
                 </div>
                 <table>
-                    <thead><tr><th style="width:32px"></th><th>제목</th><th style="width:56px">링크</th></tr></thead>
+                    <thead><tr><th style="width:32px"></th><th>제목</th><th style="width:74px">우선순위</th><th style="width:56px">링크</th></tr></thead>
                     <tbody id="videoListBody">
                         <tr><td colspan="3" style="text-align:center;color:var(--text-dim);padding:18px">왼쪽에서 캠페인을 선택하세요.</td></tr>
                     </tbody>
@@ -1793,6 +1796,10 @@
                     <div class="form-group">
                         <label>브랜드/홍보 키워드 <span style="color:var(--text-dim);font-size:11px">비우면 기본값(녹백스프레이)</span></label>
                         <input type="text" id="setOpenaiBrand" placeholder="예: 녹백스프레이">
+                    </div>
+                    <div class="form-group">
+                        <label>YouTube Data API 키 <span style="color:var(--text-dim);font-size:11px">임팩트 분석용</span></label>
+                        <input type="password" id="setYoutubeKey" placeholder="AIza...">
                     </div>
                 </div>
                 {% if is_owner %}
@@ -2851,24 +2858,56 @@
         loadCampaigns();  // 선택 강조 갱신
         const tbody = document.getElementById('videoListBody');
         if (!tbody) return;
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-dim);padding:18px">불러오는 중...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-dim);padding:18px">불러오는 중...</td></tr>';
         const data = await api(`/api/youtube/campaigns/${campaignId}/videos`);
         const vids = (data && data.videos) || [];
         document.getElementById('videoListTitle').textContent = `영상 목록 (${vids.length})`;
         const selAll = document.getElementById('videoSelectAll');
         if (selAll) selAll.checked = false;
         if (vids.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-dim);padding:18px">수집된 영상이 없습니다.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-dim);padding:18px">수집된 영상이 없습니다.</td></tr>';
             updateGenSelectedCount();
             return;
         }
-        tbody.innerHTML = vids.map(v => `
+        tbody.innerHTML = vids.map(v => {
+            const tier = v.impact_tier
+                ? `<div style="font-size:11px;white-space:nowrap">${escapeHtml(v.impact_tier)}</div><div style="font-size:10px;color:var(--text-dim)">${v.impact_score != null ? v.impact_score : '-'}점</div>`
+                : '<span style="font-size:10px;color:var(--text-dim)">미분석</span>';
+            const cap = v.has_transcript ? ' <span style="font-size:9px;color:var(--green)" title="자막 추출됨">📝</span>' : '';
+            return `
             <tr>
                 <td style="text-align:center"><input type="checkbox" class="video-select" value="${v.id}" onchange="updateGenSelectedCount()"></td>
-                <td style="font-size:13px">${escapeHtml(v.title)}${v.description ? `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">${escapeHtml(v.description)}</div>` : ''}</td>
+                <td style="font-size:13px">${escapeHtml(v.title)}${cap}${v.description ? `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">${escapeHtml(v.description)}</div>` : ''}</td>
+                <td style="text-align:center">${tier}</td>
                 <td><a href="${escapeHtml(v.url)}" target="_blank" rel="noopener" style="color:var(--blue);font-size:12px;text-decoration:none">열기 ↗</a></td>
-            </tr>`).join('');
+            </tr>`; }).join('');
         updateGenSelectedCount();
+    }
+
+    async function analyzeImpact() {
+        if (!_selectedCampaignId) { alert('먼저 캠페인을 선택하세요.'); return; }
+        const ids = getSelectedVideoIds();
+        const btn = document.getElementById('btnAnalyzeImpact');
+        const msg = document.getElementById('collectMsg');
+        btn.disabled = true; btn.textContent = '분석 중...';
+        if (msg) msg.innerHTML = '<span style="color:var(--text-dim)">YouTube Data API로 임팩트 점수 산출 중...</span>';
+        try {
+            const body = ids.length ? { video_ids: ids } : { campaign_id: _selectedCampaignId };
+            const res = await api('/api/youtube/analyze-impact', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body),
+            });
+            if (res && res.success) {
+                if (msg) msg.innerHTML = `<span style="color:var(--green)">${res.message}</span>`;
+                await viewCampaignVideos(_selectedCampaignId);
+            } else if (msg) {
+                msg.innerHTML = `<span style="color:var(--red)">${(res && res.error) || '분석 실패'}</span>`;
+            }
+        } catch (e) {
+            if (msg) msg.innerHTML = '<span style="color:var(--red)">서버 연결 실패</span>';
+        } finally {
+            btn.disabled = false; btn.textContent = '임팩트 분석';
+        }
     }
 
     function toggleVideoSelectAll(chk) {
@@ -4122,6 +4161,10 @@
             document.getElementById('setOpenaiModel').value = data.OPENAI_COMMENT_MODEL || 'gpt-4o-mini';
             document.getElementById('setOpenaiBrand').value = data.OPENAI_COMMENT_BRAND || '';
         }
+        if (document.getElementById('setYoutubeKey')) {
+            document.getElementById('setYoutubeKey').value = data.YOUTUBE_API_KEY || '';
+            document.getElementById('setYoutubeKey').placeholder = data.YOUTUBE_API_KEY ? '현재 값 유지 (변경 시 새로 입력)' : 'AIza...';
+        }
         if (IS_OWNER) {
             document.getElementById('setSmmApiKey').value = data.SMM_API_KEY || '';
             document.getElementById('setSmmApiKey').placeholder = data.SMM_API_KEY ? '현재 값 유지 (변경 시 새로 입력)' : 'API 키 입력';
@@ -4308,6 +4351,7 @@
             OPENAI_API_KEY: document.getElementById('setOpenaiKey').value,
             OPENAI_COMMENT_MODEL: document.getElementById('setOpenaiModel').value,
             OPENAI_COMMENT_BRAND: document.getElementById('setOpenaiBrand').value,
+            YOUTUBE_API_KEY: document.getElementById('setYoutubeKey').value,
             MAX_COMMENTS_PER_DAY: document.getElementById('setMaxComments').value,
             COMMENT_INTERVAL_SEC: document.getElementById('setCommentInterval').value,
             SAME_VIDEO_INTERVAL_MIN: document.getElementById('setSameVideoInterval').value,
